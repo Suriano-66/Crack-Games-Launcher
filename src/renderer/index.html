@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Crack Games Launcher</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Fond animé (particules connectées) -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- Bannière de mise à jour -->
+  <div id="update-banner" class="update-banner hidden">
+    <span id="update-text">Mise à jour disponible...</span>
+    <button id="btn-update" class="hidden">Redémarrer maintenant</button>
+  </div>
+
+  <!-- Zone de drag + boutons fenêtre -->
+  <div class="titlebar">
+    <div class="titlebar-btns">
+      <button id="btn-settings" title="Paramètres">⚙</button>
+      <button id="btn-min">─</button>
+      <button id="btn-close">✕</button>
+    </div>
+  </div>
+
+  <!-- Logo -->
+  <div class="logo-zone">
+    <img id="logo-img" src="../../assets/logo.png" alt=""
+         onerror="this.style.display='none';document.getElementById('logo-text').style.display='block'" />
+    <div id="logo-text" class="logo-text" style="display:none">
+      <span class="l1">CRACK</span><span class="l2">GAMES</span>
+    </div>
+  </div>
+
+  <!-- Écran de connexion -->
+  <div id="screen-login" class="screen active">
+    <div class="login-box">
+      <div class="panel-title">— SE CONNECTER SUR CRACK GAMES —</div>
+      <button id="btn-login" class="btn-ms">
+        <svg width="18" height="18" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+        Se connecter avec Microsoft
+      </button>
+      <p id="login-status" class="status"></p>
+    </div>
+  </div>
+
+  <!-- Écran principal -->
+  <div id="screen-main" class="screen">
+    <!-- Joueur connecté + menu comptes -->
+    <div class="player-chip" id="player-chip">
+      <img id="player-head" src="" alt="" />
+      <span id="player-name"></span>
+      <span class="chev">▾</span>
+    </div>
+    <div id="account-menu" class="account-menu hidden"></div>
+
+    <div class="main-grid">
+      <!-- Actualités -->
+      <aside class="news-panel">
+        <h3>📰 ACTUALITÉS</h3>
+        <div id="news-list"></div>
+      </aside>
+
+      <!-- Centre -->
+      <div class="center-col">
+        <div id="server-list" class="server-row"></div>
+
+        <div class="bottom-zone">
+          <button id="btn-play" class="btn-play" disabled>JOUER</button>
+          <div class="links">
+            <button class="btn-link" data-link="site">SITE WEB</button>
+            <button class="btn-link" data-link="discord">DISCORD</button>
+            <button class="btn-link btn-shop" data-link="boutique">🪙 BOUTIQUE</button>
+          </div>
+        </div>
+
+        <div class="progress-zone">
+          <div class="progress-bar"><div id="progress-fill"></div></div>
+          <p id="progress-text"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal paramètres -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-box">
+      <h2>⚙ Paramètres</h2>
+      <label class="setting-label">
+        Mémoire allouée au jeu : <b id="ram-value">4 Go</b>
+      </label>
+      <input type="range" id="ram-slider" min="2" max="16" step="1" value="4" />
+      <button id="btn-gamedir" class="btn-ghost">📁 Ouvrir le dossier du jeu</button>
+      <button id="btn-close-settings" class="btn-ghost">Fermer</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

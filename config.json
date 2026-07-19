@@ -1,0 +1,15 @@
+{
+  "serversUrl": "https://raw.githubusercontent.com/Suriano-66/Crack-Games-Launcher/main/servers.json",
+  "newsUrl": "https://raw.githubusercontent.com/Suriano-66/Crack-Games-Launcher/main/news.json",
+  "launcherName": "Crack Games Launcher",
+  "discordAppId": "",
+  "links": {
+    "site": "https://crackgames.fr",
+    "discord": "https://discord.gg/toninvite",
+    "boutique": "https://boutique.crackgames.fr"
+  },
+  "memory": {
+    "min": "2G",
+    "max": "4G"
+  }
+}

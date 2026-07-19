@@ -1,0 +1,54 @@
+{
+  "servers": [
+    {
+      "id": "survie",
+      "name": "Crack Games Survie",
+      "description": "Serveur survie principal",
+      "ip": "play.crackgames.fr",
+      "port": 25565,
+      "version": "1.21.1",
+      "visible": true,
+      "maintenance": false
+    },
+    {
+      "id": "pvp",
+      "name": "Crack Games PvP",
+      "description": "Serveur PvP / Faction",
+      "ip": "pvp.crackgames.fr",
+      "port": 25565,
+      "version": "1.20.4",
+      "visible": true,
+      "maintenance": false
+    },
+    {
+      "id": "modde",
+      "name": "Crack Games Moddé",
+      "description": "Exemple de serveur moddé Forge",
+      "ip": "mods.crackgames.fr",
+      "port": 25565,
+      "version": "1.20.1",
+      "visible": false,
+      "maintenance": false,
+      "loader": {
+        "type": "forge",
+        "installerUrl": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.3.0/forge-1.20.1-47.3.0-installer.jar"
+      },
+      "mods": [
+        {
+          "name": "exemple-mod",
+          "url": "https://tonsite.fr/mods/exemple-mod-1.20.1.jar"
+        }
+      ]
+    },
+    {
+      "id": "test",
+      "name": "Serveur Test (staff)",
+      "description": "Serveur de test - caché du public",
+      "ip": "127.0.0.1",
+      "port": 25565,
+      "version": "1.21.1",
+      "visible": false,
+      "maintenance": false
+    }
+  ]
+}
