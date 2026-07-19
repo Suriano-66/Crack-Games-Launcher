@@ -4,11 +4,11 @@
       "id": "survie",
       "name": "Crack Games Survie",
       "description": "Serveur survie principal",
-      "ip": "play.crackgames.fr",
-      "port": 25565,
+      "ip": "91.197.6.179",
+      "port": 25277,
       "version": "1.21.1",
-      "visible": true,
-      "maintenance": false
+      "visible": false,
+      "maintenance": true
     },
     {
       "id": "pvp",
@@ -17,28 +17,26 @@
       "ip": "pvp.crackgames.fr",
       "port": 25565,
       "version": "1.20.4",
-      "visible": true,
-      "maintenance": false
+      "visible": false,
+      "maintenance": true
     },
     {
       "id": "modde",
       "name": "Crack Games Moddé",
-      "description": "Exemple de serveur moddé Forge",
-      "ip": "mods.crackgames.fr",
-      "port": 25565,
-      "version": "1.20.1",
-      "visible": false,
+      "description": "Serveur moddé NeoForge",
+      "ip": "91.197.6.179",
+      "port": 25277,
+      "version": "1.21.1",
+      "visible": true,
       "maintenance": false,
       "loader": {
-        "type": "forge",
-        "installerUrl": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.3.0/forge-1.20.1-47.3.0-installer.jar"
+        "type": "neoforge"
       },
-      "mods": [
-        {
-          "name": "exemple-mod",
-          "url": "https://tonsite.fr/mods/exemple-mod-1.20.1.jar"
-        }
-      ]
+      "modsZip": {
+        "url": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/mods.zip",
+        "version": "1"
+      },
+      "mods": []
     },
     {
       "id": "test",

@@ -61,23 +61,37 @@ Le fichier est dans `dist/`. Distribue-le à tes joueurs.
 - **visible** : `false` = caché du launcher.
 - **maintenance** : `true` = affiché mais bouton JOUER désactivé avec badge MAINTENANCE.
 
-### Serveur moddé (Forge + mods)
+### Serveur moddé (Forge / NeoForge / Fabric / Quilt + mods)
 
 ```json
 {
   "id": "modde",
-  "version": "1.20.1",
-  "loader": {
-    "type": "forge",
-    "installerUrl": "https://maven.minecraftforge.net/.../forge-1.20.1-47.3.0-installer.jar"
-  },
+  "version": "1.21.1",
+  "loader": { "type": "neoforge" },
   "mods": [
     { "name": "mon-mod", "url": "https://tonsite.fr/mods/mon-mod.jar" }
   ]
 }
 ```
 
-Le launcher télécharge Forge et les mods automatiquement dans l'instance du serveur.
+- **loader.type** : `forge`, `neoforge`, `fabric` ou `quilt`. Le launcher installe automatiquement la bonne version du modloader pour la version MC du serveur. Pour NeoForge, tu peux épingler la version exacte du serveur : `"loader": { "type": "neoforge", "version": "21.1.209" }`.
+- **mods** : chaque fichier est téléchargé dans le dossier `mods` de l'instance (une seule fois, sauf s'il est supprimé).
+
+### Pack de mods complet (recommandé pour un gros modpack)
+
+```json
+"modsZip": {
+  "url": "https://github.com/TON-COMPTE/TON-REPO/releases/download/mods-v1/mods.zip",
+  "version": "1"
+}
+```
+
+1. Zippe le dossier `mods` de ton client qui fonctionne (clic droit → Compresser en ZIP).
+2. Sur GitHub → ton repo → **Releases** → **Draft a new release** → tag `mods-v1` → glisse le `mods.zip` → **Publish**.
+3. Mets l'URL du fichier dans `modsZip.url`.
+4. À chaque mise à jour du modpack : nouvelle release (`mods-v2`...), change `url` et **augmente `version`** → le launcher supprime les anciens mods et installe les nouveaux chez tous les joueurs.
+
+Le champ `version` sert de déclencheur : tant qu'il ne change pas, le pack n'est téléchargé qu'une seule fois.
 
 ### Config distante (recommandé)
 

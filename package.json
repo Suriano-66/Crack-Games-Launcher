@@ -19,7 +19,8 @@
     "extract-zip": "^2.0.1",
     "minecraft-launcher-core": "^3.18.1",
     "minecraft-server-util": "^5.4.4",
-    "msmc": "4.1.0"
+    "msmc": "4.1.0",
+    "tomate-loaders": "^2.0.2"
   },
   "build": {
     "appId": "com.crackgames.launcher",

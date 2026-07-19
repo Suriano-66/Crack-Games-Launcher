@@ -270,6 +270,8 @@ $("btn-refresh")?.addEventListener("click", loadServers);
 const PROGRESS_LABELS = {
   java: "Installation de Java",
   mods: "Téléchargement des mods",
+  modpack: "Téléchargement du pack de mods",
+  loader: "Installation du modloader",
   forge: "Téléchargement de Forge",
   assets: "Téléchargement des ressources",
   natives: "Téléchargement des fichiers natifs",

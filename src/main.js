@@ -309,6 +309,73 @@ async function ensureJava(version, onPct) {
   return j;
 }
 
+// ---------- NeoForge (version épinglable, dernière version par défaut) ----------
+async function neoforgeConfig(server, root, send) {
+  const metaRes = await fetch(
+    "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml"
+  );
+  if (!metaRes.ok) throw new Error("Impossible de récupérer les versions NeoForge");
+  const meta = await metaRes.text();
+  const all = [...meta.matchAll(/<version>([^<]+)<\/version>/g)].map((m) => m[1]);
+
+  // NeoForge 21.1.x correspond à Minecraft 1.21.1
+  const parts = server.version.split(".");
+  const prefix = `${parts[1]}.${parts[2] || 0}.`;
+  const candidates = all.filter((v) => v.startsWith(prefix) && !v.includes("beta"));
+  if (!candidates.length) throw new Error("Pas de NeoForge pour Minecraft " + server.version);
+
+  // Version précise du serveur si fournie, sinon la plus récente
+  const ver = server.loader.version || candidates[candidates.length - 1];
+  if (!all.includes(ver)) throw new Error("Version NeoForge introuvable : " + ver);
+
+  const jar = path.join(root, "versions", `neoforge-${ver}`, "neoforge-installer.jar");
+  if (!fs.existsSync(jar)) {
+    fs.mkdirSync(path.dirname(jar), { recursive: true });
+    await downloadFile(
+      `https://maven.neoforged.net/releases/net/neoforged/neoforge/${ver}/neoforge-${ver}-installer.jar`,
+      jar,
+      (p) => send("loader", p, 100)
+    );
+  }
+  await ensureNeoforgeLibraries(root, jar, send);
+
+  return {
+    version: { number: server.version, type: "release", custom: `neoforge-${ver}` },
+    forge: jar,
+  };
+}
+
+// Pré-télécharge les librairies de l'installeur NeoForge que MCLC oublie
+// (ex: binarypatcher-x.x.x-fatjar.jar) + copie le maven embarqué
+async function ensureNeoforgeLibraries(root, jar, send) {
+  const dir = path.dirname(jar);
+  const profileFile = path.join(dir, "install_profile.json");
+
+  if (!fs.existsSync(profileFile)) {
+    const extract = require("extract-zip");
+    const tmp = path.join(dir, "installer-extract");
+    await extract(jar, { dir: tmp });
+    // Jars embarqués dans l'installeur (universal, etc.)
+    const maven = path.join(tmp, "maven");
+    if (fs.existsSync(maven)) {
+      fs.cpSync(maven, path.join(root, "libraries"), { recursive: true, force: false });
+    }
+    fs.copyFileSync(path.join(tmp, "install_profile.json"), profileFile);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  const profile = JSON.parse(fs.readFileSync(profileFile, "utf-8"));
+  const libs = (profile.libraries || []).filter((l) => l.downloads?.artifact?.url && l.downloads.artifact.path);
+  for (let i = 0; i < libs.length; i++) {
+    const a = libs[i].downloads.artifact;
+    const dest = path.join(root, "libraries", ...a.path.split("/"));
+    send("loader", i + 1, libs.length);
+    if (fs.existsSync(dest)) continue;
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    await downloadFile(a.url, dest);
+  }
+}
+
 // ---------- Lancement du jeu ----------
 ipcMain.handle("game:launch", async (_evt, server) => {
   if (!authResult) return { ok: false, error: "Non connecté" };
@@ -325,7 +392,34 @@ ipcMain.handle("game:launch", async (_evt, server) => {
     send("java", 0, 100);
     const javaPath = await ensureJava(server.version, (p) => send("java", p, 100));
 
-    // 2. Mods
+    // 2a. Pack de mods complet (zip) — retéléchargé quand "version" change
+    if (server.modsZip?.url) {
+      const modsDir = path.join(root, "mods");
+      const marker = path.join(modsDir, ".pack-version");
+      const want = String(server.modsZip.version || server.modsZip.url);
+      const have = fs.existsSync(marker) ? fs.readFileSync(marker, "utf-8") : null;
+      if (have !== want) {
+        fs.rmSync(modsDir, { recursive: true, force: true });
+        fs.mkdirSync(modsDir, { recursive: true });
+        const zipPath = path.join(root, "modpack.zip");
+        send("modpack", 0, 100);
+        await downloadFile(server.modsZip.url, zipPath, (p) => send("modpack", p, 100));
+        const extract = require("extract-zip");
+        const tmp = path.join(root, "modpack-extract");
+        fs.rmSync(tmp, { recursive: true, force: true });
+        await extract(zipPath, { dir: tmp });
+        // Le zip peut contenir les .jar à la racine ou dans un dossier mods/
+        const src = fs.existsSync(path.join(tmp, "mods")) ? path.join(tmp, "mods") : tmp;
+        for (const f of fs.readdirSync(src)) {
+          if (f.endsWith(".jar")) fs.copyFileSync(path.join(src, f), path.join(modsDir, f));
+        }
+        fs.rmSync(tmp, { recursive: true, force: true });
+        fs.unlinkSync(zipPath);
+        fs.writeFileSync(marker, want);
+      }
+    }
+
+    // 2b. Mods individuels
     if (Array.isArray(server.mods) && server.mods.length) {
       const modsDir = path.join(root, "mods");
       fs.mkdirSync(modsDir, { recursive: true });
@@ -340,14 +434,21 @@ ipcMain.handle("game:launch", async (_evt, server) => {
       }
     }
 
-    // 3. Forge
-    let forgePath;
-    if (server.loader?.type === "forge" && server.loader.installerUrl) {
-      forgePath = path.join(root, "forge-installer.jar");
-      if (!fs.existsSync(forgePath)) {
-        send("forge", 0, 100);
-        await downloadFile(server.loader.installerUrl, forgePath, (p) => send("forge", p, 100));
-      }
+    // 3. Modloader (forge / neoforge / fabric / quilt)
+    let loaderConfig = null;
+    const loaderType = server.loader?.type;
+    if (loaderType === "neoforge") {
+      send("loader", 0, 100);
+      loaderConfig = await neoforgeConfig(server, root, send);
+      send("loader", 100, 100);
+    } else if (loaderType && loaderType !== "vanilla") {
+      send("loader", 0, 100);
+      const { loader } = require("tomate-loaders");
+      loaderConfig = await loader(loaderType).getMCLCLaunchConfig({
+        gameVersion: server.version,
+        rootPath: root,
+      });
+      send("loader", 100, 100);
     }
 
     // 4. Lancement
@@ -361,7 +462,7 @@ ipcMain.handle("game:launch", async (_evt, server) => {
       javaPath,
       version: { number: server.version, type: "release" },
       memory: { max: settings.ram + "G", min: "2G" },
-      ...(forgePath ? { forge: forgePath } : {}),
+      ...(loaderConfig || {}),
       ...(supportsQuickPlay
         ? { quickPlay: { type: "multiplayer", identifier: `${server.ip}:${server.port}` } }
         : { server: { host: server.ip, port: String(server.port) } }),
@@ -369,7 +470,9 @@ ipcMain.handle("game:launch", async (_evt, server) => {
 
     const launcher = new Client();
     launcher.on("progress", (e) => send(e.type, e.task, e.total));
-    launcher.on("data", () => {
+    launcher.on("debug", (l) => console.log("[MCLC]", l));
+    launcher.on("data", (l) => {
+      process.stdout.write("[MC] " + l);
       win.webContents.send("game:started");
       setRPC("Joue sur " + server.name, server.ip);
     });
