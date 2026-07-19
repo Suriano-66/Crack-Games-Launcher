@@ -219,13 +219,14 @@ async function loadServers() {
     card.dataset.id = s.id;
     card.innerHTML =
       (s.maintenance ? '<span class="maintenance-badge">MAINTENANCE</span>' : "") +
+      (s.logo ? `<img class="card-logo" src="${logoSrc(s.logo)}" />` : "") +
       `<div class="name">${s.name}</div>` +
       `<div class="desc">${s.description || ""}</div>` +
       `<span class="version">${s.version}</span>` +
       `<div class="server-status"><span class="dot" id="dot-${s.id}"></span><span id="players-${s.id}">...</span></div>`;
+    card.style.animationDelay = `${i * 90}ms`; // apparition en cascade
     card.onclick = () => selectServer(s, card);
     list.appendChild(card);
-    if (i === 0) selectServer(s, card);
   });
   pingAll();
   if (pingTimer) clearInterval(pingTimer);
@@ -251,10 +252,86 @@ async function pingAll() {
   }
 }
 
+// ---------- Fond par serveur : vidéo (se fige à la fin) ou diaporama photos ----------
+let activeLayer = null;
+let vidToggle = false, imgToggle = false;
+let slideTimer = null;
+const isVideoUrl = (u) => /\.(mp4|webm|mov)(\?|#|$)/i.test(u);
+
+function swapTo(next) {
+  const prev = activeLayer;
+  next.classList.add("visible");
+  if (prev && prev !== next) {
+    prev.classList.remove("visible");
+    if (prev.tagName === "VIDEO") setTimeout(() => prev.pause(), 1300);
+  }
+  activeLayer = next;
+}
+
+function showVideo(url) {
+  if (activeLayer?.dataset.src === url) return;
+  vidToggle = !vidToggle;
+  const el = $(vidToggle ? "bg-video-a" : "bg-video-b");
+  el.src = url;
+  el.dataset.src = url;
+  el.currentTime = 0;
+  el.play().catch(() => {}); // se joue une fois puis se fige sur la dernière image
+  swapTo(el);
+}
+
+function showImage(url) {
+  if (activeLayer?.dataset.src === url) return;
+  imgToggle = !imgToggle;
+  const el = $(imgToggle ? "bg-img-a" : "bg-img-b");
+  el.src = url;
+  el.dataset.src = url;
+  swapTo(el);
+}
+
+function setBackground(bg) {
+  if (slideTimer) { clearInterval(slideTimer); slideTimer = null; }
+  if (!bg || (Array.isArray(bg) && bg.length === 0)) {
+    if (activeLayer) { activeLayer.classList.remove("visible"); activeLayer = null; }
+    return;
+  }
+  if (Array.isArray(bg)) {
+    // Diaporama photos : fondu toutes les 7 secondes
+    let idx = 0;
+    const next = () => { showImage(bg[idx % bg.length]); idx++; };
+    next();
+    if (bg.length > 1) slideTimer = setInterval(next, 7000);
+    return;
+  }
+  isVideoUrl(bg) ? showVideo(bg) : showImage(bg);
+}
+
+// URL absolue ou fichier local dans le dossier assets/
+function logoSrc(logo) {
+  return /^https?:\/\//.test(logo) ? logo : "../../assets/" + logo;
+}
+
 function selectServer(s, card) {
   selected = s;
   document.querySelectorAll(".server-card").forEach((c) => c.classList.remove("selected"));
   card.classList.add("selected");
+  setBackground(s.background || null);
+  $("news-panel").classList.add("slide-away"); // les news s'effacent vers le haut
+
+  // Le logo du haut est remplacé par celui du serveur, avec le bounce
+  const zone = $("logo-zone"), servLogo = $("logo-server");
+  if (s.logo) {
+    servLogo.src = logoSrc(s.logo);
+    $("logo-img").classList.add("hidden");
+    $("logo-text").classList.add("hidden");
+    servLogo.classList.remove("hidden");
+  } else {
+    servLogo.classList.add("hidden");
+    $("logo-img").classList.remove("hidden");
+    $("logo-text").classList.remove("hidden");
+  }
+  zone.style.animation = "none";
+  void zone.offsetWidth; // force le redémarrage de l'animation bounce
+  zone.style.animation = "";
   if (s.maintenance) {
     $("btn-play").disabled = true;
     $("progress-text").textContent = "⚠ " + s.name + " est en maintenance.";

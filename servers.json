@@ -22,13 +22,15 @@
     },
     {
       "id": "modde",
-      "name": "Crack Games Moddé",
+      "name": "Crack Town",
       "description": "Serveur moddé NeoForge",
+      "logo": "servers/cracktown.png",
       "ip": "91.197.6.179",
       "port": 25277,
       "version": "1.21.1",
       "visible": true,
       "maintenance": false,
+      "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/fond-modde.mp4",
       "loader": {
         "type": "neoforge"
       },

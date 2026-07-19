@@ -60,6 +60,8 @@ Le fichier est dans `dist/`. Distribue-le à tes joueurs.
 - **version** : version Minecraft, chaque serveur peut avoir la sienne.
 - **visible** : `false` = caché du launcher.
 - **maintenance** : `true` = affiché mais bouton JOUER désactivé avec badge MAINTENANCE.
+- **background** : fond affiché quand le serveur est sélectionné (fondu). Trois formats possibles : une vidéo (`"https://.../fond.mp4"`, se joue une fois puis se fige), une photo (`"https://.../fond.png"`), ou un diaporama (`["url1.png", "url2.png"]`, change toutes les 7 s). Héberge les fichiers dans une release GitHub. Vide ou absent = fond dégradé par défaut.
+- **logo** : logo du serveur. Affiché sur sa carte, et remplace le logo Crack Games en haut (avec bounce) quand le serveur est sélectionné. Fichier local dans `assets/` (ex : `"servers/cracktown.png"`) ou URL.
 
 ### Serveur moddé (Forge / NeoForge / Fabric / Quilt + mods)
 

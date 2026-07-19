@@ -6,6 +6,13 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Fonds par serveur : vidéo ou photos (fondu croisé) -->
+  <video id="bg-video-a" class="bg-layer" muted playsinline></video>
+  <video id="bg-video-b" class="bg-layer" muted playsinline></video>
+  <img id="bg-img-a" class="bg-layer" alt="" />
+  <img id="bg-img-b" class="bg-layer" alt="" />
+  <div class="bg-dim"></div>
+
   <!-- Fond animé (particules connectées) -->
   <canvas id="bg-canvas"></canvas>
 
@@ -24,13 +31,14 @@
     </div>
   </div>
 
-  <!-- Logo -->
-  <div class="logo-zone">
+  <!-- Logo (remplacé par le logo du serveur sélectionné) -->
+  <div class="logo-zone" id="logo-zone">
     <img id="logo-img" src="../../assets/logo.png" alt=""
          onerror="this.style.display='none';document.getElementById('logo-text').style.display='block'" />
     <div id="logo-text" class="logo-text" style="display:none">
       <span class="l1">CRACK</span><span class="l2">GAMES</span>
     </div>
+    <img id="logo-server" class="hidden" alt="" />
   </div>
 
   <!-- Écran de connexion -->
@@ -56,15 +64,18 @@
     <div id="account-menu" class="account-menu hidden"></div>
 
     <div class="main-grid">
-      <!-- Actualités -->
-      <aside class="news-panel">
-        <h3>📰 ACTUALITÉS</h3>
-        <div id="news-list"></div>
+      <!-- Serveurs à gauche -->
+      <aside class="servers-panel">
+        <h3>🖥 SERVEURS</h3>
+        <div id="server-list" class="server-col"></div>
       </aside>
 
-      <!-- Centre -->
+      <!-- Actualités au centre -->
       <div class="center-col">
-        <div id="server-list" class="server-row"></div>
+        <div class="news-panel" id="news-panel">
+          <h3>📰 ACTUALITÉS</h3>
+          <div id="news-list"></div>
+        </div>
 
         <div class="bottom-zone">
           <button id="btn-play" class="btn-play" disabled>JOUER</button>

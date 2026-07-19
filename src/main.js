@@ -15,6 +15,8 @@ const SETTINGS_FILE = () => path.join(app.getPath("userData"), "settings.json");
 let win = null;
 let authResult = null; // session msmc active
 let rpc = null; // Discord Rich Presence
+let mcSession = null; // session Minecraft en cache (évite le rate-limit Microsoft)
+let mcSessionAt = 0;
 
 // ---------- Utilitaires ----------
 function readJson(file, fallback) {
@@ -34,6 +36,8 @@ function fmtErr(e) {
     return "Aucun profil Minecraft trouvé sur ce compte. Si tu as le Game Pass : lance d'abord le launcher officiel Minecraft une fois avec ce compte et crée ton pseudo Java, puis réessaie.";
   if (s.includes("xsts") || s.includes("child") || s.includes("under"))
     return "Compte Xbox invalide : compte enfant sans famille, ou profil Xbox inexistant. Connecte-toi une fois sur minecraft.net / xbox.com avec ce compte.";
+  if (s.includes("429") || s.includes("too many"))
+    return "Trop de requêtes vers les serveurs Microsoft. Attends 5 à 10 minutes puis réessaie.";
   if (s.includes("fetch") || s.includes("network") || s.includes("enotfound"))
     return "Problème de connexion internet.";
   return String(raw);
@@ -156,6 +160,8 @@ ipcMain.handle("auth:login", async () => {
     const auth = new Auth("select_account");
     authResult = await auth.launch("electron");
     const mc = await authResult.getMinecraft();
+    mcSession = mc;
+    mcSessionAt = Date.now();
     const profile = { name: mc.profile.name, uuid: mc.profile.id };
     saveAccount(profile, authResult.save());
     return { ok: true, profile };
@@ -172,9 +178,24 @@ async function refreshAccount(uuid) {
   const auth = new Auth("select_account");
   authResult = await auth.refresh(acc.token);
   const mc = await authResult.getMinecraft();
+  mcSession = mc;
+  mcSessionAt = Date.now();
   const profile = { name: mc.profile.name, uuid: mc.profile.id };
   saveAccount(profile, authResult.save());
   return profile;
+}
+
+// Session Minecraft valable ~24h : on la met en cache 6h pour éviter le rate-limit
+async function getMc() {
+  if (mcSession && Date.now() - mcSessionAt < 6 * 3600 * 1000) return mcSession;
+  try {
+    mcSession = await authResult.getMinecraft();
+    mcSessionAt = Date.now();
+  } catch {
+    const db = loadAccounts();
+    await refreshAccount(db.current);
+  }
+  return mcSession;
 }
 
 ipcMain.handle("auth:restore", async () => {
@@ -384,7 +405,7 @@ ipcMain.handle("game:launch", async (_evt, server) => {
     const send = (type, task, total) =>
       win.webContents.send("game:progress", { type, task, total });
 
-    const mc = await authResult.getMinecraft();
+    const mc = await getMc();
     const root = path.join(GAME_DIR(), "instances", server.id);
     fs.mkdirSync(root, { recursive: true });
 
