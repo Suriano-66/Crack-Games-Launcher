@@ -37,6 +37,12 @@ body {
   position: fixed; inset: 0; z-index: 1; pointer-events: none;
   background: linear-gradient(180deg, rgba(5,7,12,.55), rgba(5,7,12,.35) 40%, rgba(5,7,12,.65));
 }
+/* Fondu noir lors du changement de fond */
+#bg-fade {
+  position: fixed; inset: 0; z-index: 3; pointer-events: none;
+  background: #000; opacity: 0; transition: opacity .55s ease;
+}
+#bg-fade.visible { opacity: 1; }
 
 /* Particules */
 #bg-canvas { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
@@ -124,21 +130,21 @@ body {
 .status { margin-top: 14px; color: var(--muted); min-height: 20px; font-size: 13px; }
 .status.error { color: #f87171; }
 
-/* Joueur + menu comptes */
+/* Joueur + menu comptes (dans la barre de titre, à gauche des paramètres) */
+.titlebar-btns { display: flex; align-items: center; }
 .player-chip {
-  position: absolute; top: -28px; left: 16px; z-index: 20;
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 6px;
   background: var(--panel); border: 1px solid rgba(255,255,255,.12);
-  border-radius: 30px; padding: 5px 14px 5px 6px;
-  backdrop-filter: blur(6px); cursor: pointer;
+  border-radius: 30px; padding: 2px 10px 2px 3px; margin-right: 6px;
+  cursor: pointer;
 }
 .player-chip:hover { border-color: rgba(255,255,255,.4); }
-.player-chip img { width: 28px; height: 28px; border-radius: 50%; background: #222; }
-.player-chip span { font-weight: 600; font-size: 14px; }
-.player-chip .chev { color: var(--muted); font-size: 11px; }
+.player-chip img { width: 22px; height: 22px; border-radius: 50%; background: #222; }
+.player-chip span { font-weight: 600; font-size: 13px; }
+.player-chip .chev { color: var(--muted); font-size: 10px; }
 
 .account-menu {
-  position: absolute; top: 14px; left: 16px; z-index: 30;
+  position: fixed; top: 44px; right: 96px; z-index: 60;
   background: rgba(12, 16, 26, 0.95); border: 1px solid rgba(255,255,255,.15);
   border-radius: 10px; min-width: 220px; overflow: hidden;
   backdrop-filter: blur(10px);
@@ -305,3 +311,160 @@ body {
   border-radius: 8px; padding: 9px; cursor: pointer; font-size: 13px;
 }
 .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+/* ============================================================
+   POLISH PREMIUM
+   ============================================================ */
+
+body { font-family: "Poppins", "Segoe UI", sans-serif; }
+
+/* Scrollbars fines et discrètes */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3); }
+
+/* Barre de titre */
+.titlebar { justify-content: space-between; padding-left: 14px; }
+.titlebar-brand {
+  font-size: 12px; color: var(--muted); letter-spacing: .5px;
+  -webkit-app-region: drag;
+}
+.titlebar-brand b { color: var(--text); font-weight: 600; }
+#app-version { font-size: 10px; color: var(--muted); opacity: .7; margin-left: 4px; }
+.titlebar-btns button { transition: color .15s, transform .3s; border-radius: 6px; }
+#btn-settings:hover { transform: rotate(90deg); color: var(--accent); }
+
+/* Cartes serveur */
+.server-card {
+  transition: transform .2s ease, border-color .2s, box-shadow .25s, background .2s;
+}
+.server-card:hover {
+  transform: translateX(4px);
+  background: rgba(28, 36, 52, 0.8);
+}
+.server-card.selected {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(74,222,128,.10), rgba(20,26,38,.75) 55%);
+  box-shadow: 0 0 22px rgba(74,222,128,.22), inset 0 0 18px rgba(74,222,128,.05);
+}
+.server-card .version {
+  background: rgba(74,222,128,.12); color: #86efac;
+  border: 1px solid rgba(74,222,128,.2);
+}
+
+/* Pastille de statut qui pulse quand le serveur est en ligne */
+.dot.on { animation: dotPulse 2.2s ease-out infinite; }
+@keyframes dotPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(74,222,128,.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(74,222,128,0); }
+  100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+}
+
+/* Panneaux : verre dépoli plus prononcé */
+.servers-panel, .news-panel, .login-box {
+  background: rgba(10, 14, 22, 0.62);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 40px rgba(0,0,0,.35);
+  border-radius: 14px;
+}
+.servers-panel h3, .news-panel h3 { font-weight: 600; }
+.news-item .n-title { font-size: 14.5px; }
+.news-item { transition: background .15s; border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+.news-item:hover { background: rgba(255,255,255,.04); }
+
+/* Bouton JOUER : lueur au survol */
+.btn-play {
+  transition: transform .15s cubic-bezier(.34,1.56,.64,1), filter .2s;
+}
+.btn-play:hover:not(:disabled) {
+  transform: rotate(-2deg) scale(1.1);
+  filter: brightness(1.2) drop-shadow(0 0 22px rgba(239,68,68,.45));
+}
+.btn-play:active:not(:disabled) { transform: rotate(-2deg) scale(1.02); }
+.btn-play:disabled { opacity: .3; filter: grayscale(.6); }
+
+/* Boutons liens */
+.btn-link {
+  transition: border-color .2s, transform .15s, box-shadow .2s;
+  font-family: inherit;
+}
+.btn-link:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+
+/* Barre de progression : brillance animée */
+.progress-bar {
+  height: 13px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.22);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.5);
+}
+#progress-fill {
+  border-radius: 8px;
+  background: linear-gradient(90deg, #15803d, #4ade80, #86efac, #4ade80, #15803d);
+  background-size: 220% 100%;
+  animation: progressFlow 2.2s linear infinite;
+  box-shadow: 0 0 12px rgba(74,222,128,.4);
+}
+@keyframes progressFlow {
+  from { background-position: 0% 0; }
+  to   { background-position: 220% 0; }
+}
+#progress-text { letter-spacing: .3px; }
+
+/* Écran de connexion */
+.login-box { padding: 36px 48px; }
+.btn-ms {
+  border-radius: 8px; transition: transform .15s, box-shadow .2s;
+}
+.btn-ms:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,255,255,.15); }
+
+/* Menu des comptes : apparition douce */
+.account-menu {
+  box-shadow: 0 16px 44px rgba(0,0,0,.55);
+  animation: menuIn .18s ease-out both;
+}
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-6px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.account-menu .item { transition: background .12s, color .12s; }
+
+/* Badge joueur */
+.player-chip { transition: border-color .2s, box-shadow .2s; }
+.player-chip:hover { box-shadow: 0 0 12px rgba(74,222,128,.2); border-color: rgba(74,222,128,.4); }
+
+/* Modal paramètres */
+.modal { backdrop-filter: blur(4px); }
+.modal-box {
+  animation: modalPop .25s cubic-bezier(.34,1.4,.64,1) both;
+  box-shadow: 0 24px 60px rgba(0,0,0,.6);
+  border-radius: 16px;
+}
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(.92) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+#ram-slider {
+  -webkit-appearance: none; height: 6px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent-dark), var(--accent));
+  outline: none;
+}
+#ram-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; border: 3px solid var(--accent);
+  cursor: pointer; transition: transform .15s;
+}
+#ram-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.btn-ghost { transition: color .15s, border-color .15s, background .15s; }
+.btn-ghost:hover { background: rgba(255,255,255,.05); }
+
+/* Badge maintenance : pulse discret */
+.maintenance-badge { animation: maintPulse 2.5s ease-in-out infinite; }
+@keyframes maintPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .65; }
+}
+
+/* Bannière de mise à jour */
+.update-banner { box-shadow: 0 4px 20px rgba(22,163,74,.4); }
+.update-banner button { transition: transform .15s; }
+.update-banner button:hover { transform: scale(1.05); }

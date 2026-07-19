@@ -73,6 +73,7 @@ $("btn-update").onclick = () => launcher.installUpdate();
 // ---------- Liens ----------
 (async () => {
   config = await launcher.getConfig();
+  if (config.appVersion) $("app-version").textContent = "v" + config.appVersion;
   document.querySelectorAll(".btn-link").forEach((b) => {
     const url = config.links?.[b.dataset.link];
     if (!url) { b.style.display = "none"; return; }
@@ -101,8 +102,9 @@ $("settings-modal").onclick = (e) => {
 
 // ---------- Connexion / comptes ----------
 async function onLoggedIn(profile) {
+  $("player-chip").classList.remove("hidden");
   $("player-name").textContent = profile.name;
-  $("player-head").src = `https://mc-heads.net/avatar/${profile.uuid}/28`;
+  $("player-head").src = `https://mc-heads.net/avatar/${profile.uuid}/22`;
   $("screen-login").classList.remove("active");
   $("screen-main").classList.add("active");
   await loadServers();
@@ -113,6 +115,7 @@ function showLogin() {
   $("screen-main").classList.remove("active");
   $("screen-login").classList.add("active");
   $("account-menu").classList.add("hidden");
+  $("player-chip").classList.add("hidden");
   if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
 }
 
@@ -275,6 +278,8 @@ function showVideo(url) {
   el.src = url;
   el.dataset.src = url;
   el.currentTime = 0;
+  el.muted = false;
+  el.volume = 0.5; // son de la vidéo
   el.play().catch(() => {}); // se joue une fois puis se fige sur la dernière image
   swapTo(el);
 }
@@ -288,21 +293,34 @@ function showImage(url) {
   swapTo(el);
 }
 
+let currentBgKey = null;
 function setBackground(bg) {
+  const key = JSON.stringify(bg || null);
+  if (key === currentBgKey) return; // même fond, pas de transition
+  currentBgKey = key;
   if (slideTimer) { clearInterval(slideTimer); slideTimer = null; }
-  if (!bg || (Array.isArray(bg) && bg.length === 0)) {
-    if (activeLayer) { activeLayer.classList.remove("visible"); activeLayer = null; }
-    return;
-  }
-  if (Array.isArray(bg)) {
-    // Diaporama photos : fondu toutes les 7 secondes
-    let idx = 0;
-    const next = () => { showImage(bg[idx % bg.length]); idx++; };
-    next();
-    if (bg.length > 1) slideTimer = setInterval(next, 7000);
-    return;
-  }
-  isVideoUrl(bg) ? showVideo(bg) : showImage(bg);
+
+  // Transition en fondu noir : on assombrit, on change le fond, on rouvre
+  const fade = $("bg-fade");
+  fade.classList.add("visible");
+  setTimeout(() => {
+    if (!bg || (Array.isArray(bg) && bg.length === 0)) {
+      if (activeLayer) {
+        if (activeLayer.tagName === "VIDEO") activeLayer.pause();
+        activeLayer.classList.remove("visible");
+        activeLayer = null;
+      }
+    } else if (Array.isArray(bg)) {
+      // Diaporama photos : fondu toutes les 7 secondes
+      let idx = 0;
+      const next = () => { showImage(bg[idx % bg.length]); idx++; };
+      next();
+      if (bg.length > 1) slideTimer = setInterval(next, 7000);
+    } else {
+      isVideoUrl(bg) ? showVideo(bg) : showImage(bg);
+    }
+    setTimeout(() => fade.classList.remove("visible"), 250);
+  }, 580);
 }
 
 // URL absolue ou fichier local dans le dossier assets/

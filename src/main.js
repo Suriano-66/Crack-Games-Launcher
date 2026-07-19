@@ -70,7 +70,7 @@ app.on("window-all-closed", () => app.quit());
 
 ipcMain.on("window:minimize", () => win.minimize());
 ipcMain.on("window:close", () => win.close());
-ipcMain.handle("config:get", () => CONFIG);
+ipcMain.handle("config:get", () => ({ ...CONFIG, appVersion: app.getVersion() }));
 ipcMain.on("open:link", (_e, url) => {
   if (/^https?:\/\//.test(url)) shell.openExternal(url);
 });

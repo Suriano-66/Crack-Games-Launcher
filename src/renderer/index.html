@@ -3,15 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <title>Crack Games Launcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <!-- Fonds par serveur : vidéo ou photos (fondu croisé) -->
-  <video id="bg-video-a" class="bg-layer" muted playsinline></video>
-  <video id="bg-video-b" class="bg-layer" muted playsinline></video>
+  <video id="bg-video-a" class="bg-layer" playsinline></video>
+  <video id="bg-video-b" class="bg-layer" playsinline></video>
   <img id="bg-img-a" class="bg-layer" alt="" />
   <img id="bg-img-b" class="bg-layer" alt="" />
   <div class="bg-dim"></div>
+  <div id="bg-fade"></div>
 
   <!-- Fond animé (particules connectées) -->
   <canvas id="bg-canvas"></canvas>
@@ -24,12 +28,19 @@
 
   <!-- Zone de drag + boutons fenêtre -->
   <div class="titlebar">
+    <span class="titlebar-brand">⛏ <b>Crack Games</b> <span id="app-version"></span></span>
     <div class="titlebar-btns">
+      <div class="player-chip hidden" id="player-chip">
+        <img id="player-head" src="" alt="" />
+        <span id="player-name"></span>
+        <span class="chev">▾</span>
+      </div>
       <button id="btn-settings" title="Paramètres">⚙</button>
       <button id="btn-min">─</button>
       <button id="btn-close">✕</button>
     </div>
   </div>
+  <div id="account-menu" class="account-menu hidden"></div>
 
   <!-- Logo (remplacé par le logo du serveur sélectionné) -->
   <div class="logo-zone" id="logo-zone">
@@ -55,14 +66,6 @@
 
   <!-- Écran principal -->
   <div id="screen-main" class="screen">
-    <!-- Joueur connecté + menu comptes -->
-    <div class="player-chip" id="player-chip">
-      <img id="player-head" src="" alt="" />
-      <span id="player-name"></span>
-      <span class="chev">▾</span>
-    </div>
-    <div id="account-menu" class="account-menu hidden"></div>
-
     <div class="main-grid">
       <!-- Serveurs à gauche -->
       <aside class="servers-panel">
