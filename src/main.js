@@ -2,6 +2,11 @@ const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+const crypto = require("crypto");
+
+function sha256(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
 const { Auth } = require("msmc");
 const { Client } = require("minecraft-launcher-core");
 
@@ -262,7 +267,9 @@ ipcMain.handle("auth:logout", async () => {
 // ---------- Serveurs ----------
 ipcMain.handle("servers:get", async () => {
   try {
-    const res = await fetch(CONFIG.serversUrl, { cache: "no-store" });
+    // Paramètre unique pour contourner le cache de GitHub : toujours la dernière version
+    const bust = (CONFIG.serversUrl.includes("?") ? "&" : "?") + "t=" + Date.now();
+    const res = await fetch(CONFIG.serversUrl + bust, { cache: "no-store" });
     if (res.ok) {
       const data = await res.json();
       return { ok: true, source: "remote", servers: data.servers.filter((s) => s.visible) };
@@ -297,7 +304,8 @@ ipcMain.handle("servers:ping", async (_e, list) => {
 ipcMain.handle("news:get", async () => {
   try {
     if (CONFIG.newsUrl) {
-      const res = await fetch(CONFIG.newsUrl, { cache: "no-store" });
+      const bust = (CONFIG.newsUrl.includes("?") ? "&" : "?") + "t=" + Date.now();
+      const res = await fetch(CONFIG.newsUrl + bust, { cache: "no-store" });
       if (res.ok) return { ok: true, news: (await res.json()).news };
     }
   } catch {}
@@ -475,6 +483,12 @@ ipcMain.handle("game:launch", async (_evt, server) => {
         }
         fs.rmSync(tmp, { recursive: true, force: true });
         fs.unlinkSync(zipPath);
+        // Manifeste anti-triche : empreinte de chaque mod officiel
+        const manifest = { files: {} };
+        for (const f of fs.readdirSync(modsDir)) {
+          if (f.endsWith(".jar")) manifest.files[f] = sha256(path.join(modsDir, f));
+        }
+        writeJson(path.join(root, ".mods-manifest.json"), manifest);
         fs.writeFileSync(marker, want);
       }
     }
@@ -491,6 +505,53 @@ ipcMain.handle("game:launch", async (_evt, server) => {
         const r = await fetch(m.url);
         if (!r.ok) throw new Error("Mod introuvable : " + m.name);
         fs.writeFileSync(f, Buffer.from(await r.arrayBuffer()));
+      }
+    }
+
+    // 2c. Anti-triche : le dossier mods doit correspondre exactement au pack officiel
+    {
+      const manifestFile = path.join(root, ".mods-manifest.json");
+      if (fs.existsSync(manifestFile)) {
+        const manifest = readJson(manifestFile, { files: {} });
+        const modsDir = path.join(root, "mods");
+        // Mods individuels (server.mods) ajoutés au manifeste s'ils n'y sont pas
+        if (Array.isArray(server.mods)) {
+          let changed = false;
+          for (const m of server.mods) {
+            const name = m.name.endsWith(".jar") ? m.name : m.name + ".jar";
+            const p = path.join(modsDir, name);
+            if (fs.existsSync(p) && !manifest.files[name]) {
+              manifest.files[name] = sha256(p);
+              changed = true;
+            }
+          }
+          if (changed) writeJson(manifestFile, manifest);
+        }
+        let tampered = false;
+        // Jars inconnus → supprimés (xray, cheats...)
+        for (const f of fs.readdirSync(modsDir)) {
+          if (!f.endsWith(".jar")) continue;
+          const p = path.join(modsDir, f);
+          if (!manifest.files[f]) {
+            console.warn("[anti-triche] mod non autorisé supprimé :", f);
+            fs.rmSync(p, { force: true });
+          } else if (sha256(p) !== manifest.files[f]) {
+            tampered = true; // jar officiel modifié
+          }
+        }
+        // Jars officiels manquants ?
+        for (const name of Object.keys(manifest.files)) {
+          if (!fs.existsSync(path.join(modsDir, name))) tampered = true;
+        }
+        if (tampered) {
+          // Réinitialisation : le pack sera retéléchargé proprement
+          fs.rmSync(modsDir, { recursive: true, force: true });
+          fs.rmSync(manifestFile, { force: true });
+          return {
+            ok: false,
+            error: "Des fichiers de mods modifiés ont été détectés. Ils ont été réinitialisés : clique à nouveau sur JOUER.",
+          };
+        }
       }
     }
 

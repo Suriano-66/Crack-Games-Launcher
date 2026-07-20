@@ -1,6 +1,6 @@
 {
   "name": "crackgames-launcher",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Crack Games Launcher - Minecraft Premium",
   "main": "src/main.js",
   "scripts": {
@@ -25,6 +25,15 @@
   "build": {
     "appId": "com.crackgames.launcher",
     "productName": "Crack Games Launcher",
+    "compression": "maximum",
+    "files": [
+      "src/**/*",
+      "config.json",
+      "servers.json",
+      "news.json",
+      "assets/**/*",
+      "package.json"
+    ],
     "publish": {
       "provider": "github",
       "owner": "Suriano-66",

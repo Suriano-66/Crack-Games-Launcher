@@ -186,6 +186,7 @@ function showLogin() {
   $("player-chip").classList.add("hidden");
   showLoginBackground();
   if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
 }
 
 $("btn-login").onclick = async () => {
@@ -279,10 +280,33 @@ async function loadNews() {
 }
 
 // ---------- Serveurs ----------
+let lastServersKey = null;
+let refreshTimer = null;
+
 async function loadServers() {
   const res = await launcher.getServers();
   if (!res.ok) return;
-  servers = res.servers;
+  lastServersKey = JSON.stringify(res.servers);
+  renderServerList(res.servers);
+  if (pingTimer) clearInterval(pingTimer);
+  pingTimer = setInterval(pingAll, 30000);
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(refreshServers, 60000); // liste re-synchronisée chaque minute
+}
+
+// Re-télécharge la liste : si elle a changé sur GitHub, l'affichage se met à jour tout seul
+async function refreshServers() {
+  const res = await launcher.getServers();
+  if (!res.ok) return;
+  const key = JSON.stringify(res.servers);
+  if (key === lastServersKey) return;
+  lastServersKey = key;
+  renderServerList(res.servers);
+}
+
+function renderServerList(newServers) {
+  servers = newServers;
+  const prevSelected = selected?.id;
   const list = $("server-list");
   list.innerHTML = "";
   servers.forEach((s, i) => {
@@ -301,9 +325,17 @@ async function loadServers() {
     card.onclick = () => selectServer(s, card);
     list.appendChild(card);
   });
+  // On garde la sélection du joueur après un rafraîchissement
+  if (prevSelected) {
+    const s = servers.find((x) => x.id === prevSelected);
+    const card = list.querySelector(`.server-card[data-id="${prevSelected}"]`);
+    if (s && card) selectServer(s, card);
+    else {
+      selected = null;
+      if (!updateReady) $("btn-play").disabled = true;
+    }
+  }
   pingAll();
-  if (pingTimer) clearInterval(pingTimer);
-  pingTimer = setInterval(pingAll, 30000);
 }
 
 async function pingAll() {
