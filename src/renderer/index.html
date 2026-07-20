@@ -28,7 +28,12 @@
 
   <!-- Zone de drag + boutons fenêtre -->
   <div class="titlebar">
-    <span class="titlebar-brand">⛏ <b>Crack Games</b> <span id="app-version"></span></span>
+    <span class="titlebar-brand">
+      <img id="brand-logo" src="../../assets/logo.png" alt=""
+           onerror="this.style.display='none';document.getElementById('brand-text').style.display='inline'" />
+      <span id="brand-text" style="display:none"><b class="b1">CRACK</b><b class="b2">GAMES</b></span>
+      <span id="app-version"></span>
+    </span>
     <div class="titlebar-btns">
       <div class="player-chip hidden" id="player-chip">
         <img id="player-head" src="" alt="" />

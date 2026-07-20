@@ -329,8 +329,15 @@ body { font-family: "Poppins", "Segoe UI", sans-serif; }
 .titlebar-brand {
   font-size: 12px; color: var(--muted); letter-spacing: .5px;
   -webkit-app-region: drag;
+  display: flex; align-items: center; gap: 6px;
 }
-.titlebar-brand b { color: var(--text); font-weight: 600; }
+#brand-logo { max-height: 26px; }
+#brand-text { font-weight: 900; font-size: 13px; letter-spacing: 1px; }
+#brand-text .b1 { color: #fff; }
+#brand-text .b2 {
+  background: linear-gradient(180deg, #86efac, var(--accent) 55%, var(--accent-dark));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
 #app-version { font-size: 10px; color: var(--muted); opacity: .7; margin-left: 4px; }
 .titlebar-btns button { transition: color .15s, transform .3s; border-radius: 6px; }
 #btn-settings:hover { transform: rotate(90deg); color: var(--accent); }
@@ -468,3 +475,90 @@ body { font-family: "Poppins", "Segoe UI", sans-serif; }
 .update-banner { box-shadow: 0 4px 20px rgba(22,163,74,.4); }
 .update-banner button { transition: transform .15s; }
 .update-banner button:hover { transform: scale(1.05); }
+
+/* ============================================================
+   PANNEAU SERVEURS : pleine hauteur, noir transparent, cartes carrées
+   ============================================================ */
+
+.servers-panel {
+  position: fixed; left: 0; top: 0; bottom: 0;
+  width: 250px; margin: 0;
+  padding: 52px 14px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border: none; border-right: 1px solid rgba(255,255,255,.08);
+  border-radius: 0;
+  box-shadow: 8px 0 30px rgba(0,0,0,.35);
+  backdrop-filter: blur(10px);
+  z-index: 6;
+}
+
+/* Le contenu central s'écarte du panneau */
+.center-col { margin-left: 250px; }
+
+/* Cartes carrées, compactes */
+.server-col {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+}
+.server-card {
+  aspect-ratio: 1 / 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 8px;
+  background: rgba(0, 0, 0, 0.35);
+}
+.server-card:hover { transform: translateY(-3px); background: rgba(0,0,0,.5); }
+.server-card.selected {
+  background: linear-gradient(160deg, rgba(74,222,128,.12), rgba(0,0,0,.45) 60%);
+}
+.server-card .card-logo { max-height: 38px; margin: 0 0 6px; }
+.server-card .name { font-size: 12.5px; line-height: 1.15; }
+.server-card .desc { display: none; }
+.server-card .version { font-size: 9px; padding: 1px 8px; margin-top: 5px; }
+.server-card .server-status { font-size: 10px; justify-content: center; margin-top: 4px; }
+.maintenance-badge { top: -6px; right: -6px; font-size: 8px; padding: 2px 6px; }
+
+/* Panneau serveurs : cartes centrées verticalement, gros logo, sans nom */
+.servers-panel { display: flex; flex-direction: column; }
+.server-col { flex: 1; align-content: center; }
+.server-card .name { display: none; }
+.server-card .card-logo { max-height: 64px; margin: 0 0 8px; }
+
+/* Correction : le panneau serveurs se détache du haut et du bas,
+   les cartes restent centrées verticalement, nom et logo comme avant */
+.servers-panel {
+  top: 52px; bottom: 16px; left: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  padding-top: 16px;
+}
+.server-card .name { display: block; }
+.server-card .card-logo { max-height: 38px; margin: 0 0 6px; }
+
+/* Cartes serveurs : en haut du panneau, centrées, empilées de haut en bas */
+.server-col {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  align-content: flex-start;
+  gap: 12px; flex: 1;
+}
+.server-card { width: 150px; aspect-ratio: 1 / 1; }
+
+/* Halo des cartes assorti au décor du serveur (champ "color" dans servers.json) */
+.server-card { --card-accent: var(--accent); }
+.server-card:hover { border-color: color-mix(in srgb, var(--card-accent) 60%, transparent); }
+.server-card.selected {
+  border-color: var(--card-accent);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--card-accent) 14%, transparent), rgba(0,0,0,.45) 60%);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--card-accent) 35%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--card-accent) 8%, transparent);
+}
+.server-card.selected .version {
+  background: color-mix(in srgb, var(--card-accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--card-accent) 30%, transparent);
+  color: color-mix(in srgb, var(--card-accent) 75%, #fff);
+}
+.server-card.selected .dot.on {
+  background: var(--card-accent);
+  box-shadow: 0 0 6px var(--card-accent);
+}

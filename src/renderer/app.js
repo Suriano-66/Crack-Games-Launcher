@@ -228,6 +228,7 @@ async function loadServers() {
       `<span class="version">${s.version}</span>` +
       `<div class="server-status"><span class="dot" id="dot-${s.id}"></span><span id="players-${s.id}">...</span></div>`;
     card.style.animationDelay = `${i * 90}ms`; // apparition en cascade
+    if (s.color) card.style.setProperty("--card-accent", s.color); // halo assorti au fond
     card.onclick = () => selectServer(s, card);
     list.appendChild(card);
   });

@@ -25,6 +25,7 @@
       "name": "Crack Town",
       "description": "Serveur moddé NeoForge",
       "logo": "servers/cracktown.png",
+      "color": "#fbbf24",
       "ip": "91.197.6.179",
       "port": 25277,
       "version": "1.21.1",
