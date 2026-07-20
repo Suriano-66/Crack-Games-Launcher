@@ -51,7 +51,7 @@
       "port": 25277,
       "version": "1.20.1",
       "visible": true,
-      "maintenance": false,
+      "maintenance": true,
       "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/squidgamesfond.mp4",
       "loader": {
         "type": "neoforge"
