@@ -31,7 +31,7 @@
       "version": "1.21.1",
       "visible": true,
       "maintenance": false,
-      "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/fond.mp4",
+      "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/cracktownfond.mp4",
       "loader": {
         "type": "neoforge"
       },
@@ -46,13 +46,13 @@
       "name": "Crack Squid Games",
       "description": "Serveur moddé NeoForge",
       "logo": "servers/cgsquidgame.png",
-      "color": "#00B7FA",
+      "color": "#2E8B57",
       "ip": "91.197.6.179",
       "port": 25277,
       "version": "1.21.1",
       "visible": true,
       "maintenance": false,
-      "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/fond.mp4",
+      "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/squidgamesfond.mp4",
       "loader": {
         "type": "neoforge"
       },
