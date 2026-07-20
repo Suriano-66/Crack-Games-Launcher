@@ -562,3 +562,16 @@ body { font-family: "Poppins", "Segoe UI", sans-serif; }
   background: var(--card-accent);
   box-shadow: 0 0 6px var(--card-accent);
 }
+
+/* Boutons Site Web / Discord / Boutique dans la barre du haut */
+.titlebar { justify-content: flex-start; }
+.titlebar-btns { margin-left: auto; }
+.titlebar-links {
+  -webkit-app-region: no-drag;
+  display: flex; gap: 8px; align-items: center;
+  margin-left: 16px; padding-bottom: 0;
+}
+.titlebar-links .btn-link { padding: 4px 12px; font-size: 11px; }
+
+/* Le bouton JOUER seul, centré en bas */
+.bottom-zone { justify-content: center; }

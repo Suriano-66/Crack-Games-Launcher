@@ -21,11 +21,32 @@
       "maintenance": true
     },
     {
-      "id": "modde",
+      "id": "cracktown",
       "name": "Crack Town",
       "description": "Serveur moddé NeoForge",
       "logo": "servers/cracktown.png",
       "color": "#fbbf24",
+      "ip": "91.197.6.179",
+      "port": 25277,
+      "version": "1.21.1",
+      "visible": true,
+      "maintenance": false,
+      "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/fond.mp4",
+      "loader": {
+        "type": "neoforge"
+      },
+      "modsZip": {
+        "url": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/mods.zip",
+        "version": "1"
+      },
+      "mods": []
+    },
+    {
+      "id": "squidgames",
+      "name": "Crack Squid Games",
+      "description": "Serveur moddé NeoForge",
+      "logo": "servers/cgsquidgame.png",
+      "color": "#00B7FA",
       "ip": "91.197.6.179",
       "port": 25277,
       "version": "1.21.1",
