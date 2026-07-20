@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const { Auth } = require("msmc");
 const { Client } = require("minecraft-launcher-core");
 
@@ -51,6 +52,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 620,
     frame: false,
+    icon: path.join(__dirname, "..", "assets", "icon.png"),
     backgroundColor: "#0d0f14",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -60,6 +62,8 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
 }
+
+app.setAppUserModelId("com.crackgames.launcher");
 
 app.whenReady().then(() => {
   createWindow();
@@ -123,14 +127,36 @@ function setRPC(details, state) {
 }
 
 // ---------- Paramètres ----------
-const DEFAULT_SETTINGS = { ram: parseInt(CONFIG.memory?.max) || 4 };
+const DEFAULT_SETTINGS = {
+  ram: parseInt(CONFIG.memory?.max) || 4,
+  volume: 15,          // volume des vidéos de fond (%)
+  bgPaused: false,     // vidéos de fond en pause
+  fullscreen: false,   // jeu en plein écran
+  width: 1280,
+  height: 720,
+  closeLauncher: false // réduire le launcher pendant le jeu
+};
 function getSettings() {
   return { ...DEFAULT_SETTINGS, ...readJson(SETTINGS_FILE(), {}) };
 }
-ipcMain.handle("settings:get", () => getSettings());
+ipcMain.handle("settings:get", () => ({
+  ...getSettings(),
+  totalRam: Math.max(4, Math.round(os.totalmem() / 1024 ** 3)),
+}));
 ipcMain.handle("settings:set", (_e, s) => {
   writeJson(SETTINGS_FILE(), { ...getSettings(), ...s });
   return getSettings();
+});
+
+// Répare un serveur : supprime son instance, tout sera retéléchargé
+ipcMain.handle("game:repair", (_e, serverId) => {
+  try {
+    if (!serverId || /[\\/.]/.test(serverId)) throw new Error("Serveur invalide");
+    fs.rmSync(path.join(GAME_DIR(), "instances", serverId), { recursive: true, force: true });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: fmtErr(e) };
+  }
 });
 
 // ---------- Comptes (multi-comptes) ----------
@@ -434,6 +460,19 @@ ipcMain.handle("game:launch", async (_evt, server) => {
         for (const f of fs.readdirSync(src)) {
           if (f.endsWith(".jar")) fs.copyFileSync(path.join(src, f), path.join(modsDir, f));
         }
+        // Tout le reste (options.txt, config/, resourcepacks/, shaderpacks/...)
+        // est copié dans l'instance SANS écraser les fichiers existants :
+        // les réglages personnels des joueurs sont préservés
+        for (const entry of fs.readdirSync(tmp)) {
+          if (entry === "mods") continue;
+          const from = path.join(tmp, entry);
+          const to = path.join(root, entry);
+          if (fs.statSync(from).isDirectory()) {
+            fs.cpSync(from, to, { recursive: true, force: false });
+          } else if (!entry.endsWith(".jar") && !fs.existsSync(to)) {
+            fs.copyFileSync(from, to);
+          }
+        }
         fs.rmSync(tmp, { recursive: true, force: true });
         fs.unlinkSync(zipPath);
         fs.writeFileSync(marker, want);
@@ -483,6 +522,9 @@ ipcMain.handle("game:launch", async (_evt, server) => {
       javaPath,
       version: { number: server.version, type: "release" },
       memory: { max: settings.ram + "G", min: "2G" },
+      window: settings.fullscreen
+        ? { fullscreen: true }
+        : { width: settings.width || 1280, height: settings.height || 720 },
       ...(loaderConfig || {}),
       ...(supportsQuickPlay
         ? { quickPlay: { type: "multiplayer", identifier: `${server.ip}:${server.port}` } }
@@ -495,10 +537,12 @@ ipcMain.handle("game:launch", async (_evt, server) => {
     launcher.on("data", (l) => {
       process.stdout.write("[MC] " + l);
       win.webContents.send("game:started");
+      if (getSettings().closeLauncher && !win.isMinimized()) win.minimize();
       setRPC("Joue sur " + server.name, server.ip);
     });
     launcher.on("close", (code) => {
       win.webContents.send("game:closed", code);
+      if (win.isMinimized()) win.restore();
       setRPC("Sur le launcher");
     });
 

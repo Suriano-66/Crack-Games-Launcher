@@ -575,3 +575,154 @@ body { font-family: "Poppins", "Segoe UI", sans-serif; }
 
 /* Le bouton JOUER seul, centré en bas */
 .bottom-zone { justify-content: center; }
+
+/* Paramètres améliorés */
+.modal-box { width: 420px; gap: 16px; max-height: 85vh; overflow-y: auto; }
+.setting-group { display: flex; flex-direction: column; gap: 8px; }
+.setting-hint { font-size: 11px; color: var(--muted); opacity: .8; }
+.setting-check {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13.5px; color: var(--text); cursor: pointer;
+}
+.setting-check input { accent-color: var(--accent); width: 15px; height: 15px; }
+.size-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--muted); transition: opacity .2s;
+}
+.size-row input {
+  width: 80px; padding: 6px 8px; border-radius: 6px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.15);
+  color: var(--text); font-family: inherit; font-size: 13px; text-align: center;
+}
+.size-row input:focus { outline: none; border-color: var(--accent); }
+.settings-actions { display: flex; gap: 8px; }
+.settings-actions .btn-ghost { flex: 1; margin: 0; }
+.btn-danger { border-color: rgba(248,113,113,.4); color: #fca5a5; }
+.btn-danger:hover { border-color: #f87171; color: #f87171; background: rgba(248,113,113,.08); }
+
+/* Pendant la transition noire, les fonds changent sans fondu croisé */
+.bg-layer.no-fade { transition: none !important; }
+
+/* Cartes serveurs : sans nom, logo agrandi, pastille à la couleur du serveur */
+.server-card .name { display: none; }
+.server-card .card-logo { max-height: 58px; margin: 0 0 8px; }
+.server-card .dot.on {
+  background: var(--card-accent);
+  animation: dotPulseAccent 2.2s ease-out infinite;
+}
+@keyframes dotPulseAccent {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--card-accent) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* La pastille de statut reste toujours verte (en ligne) / rouge (hors ligne) */
+.server-card .dot.on,
+.server-card.selected .dot.on {
+  background: #4ade80 !important;
+  animation: dotPulse 2.2s ease-out infinite !important;
+  box-shadow: 0 0 6px rgba(74, 222, 128, .8);
+}
+
+/* ============================================================
+   ÉCRAN DE CONNEXION ÉPURÉ
+   ============================================================ */
+
+.login-box {
+  background: linear-gradient(180deg, rgba(18, 24, 38, .82), rgba(9, 12, 20, .9));
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 22px;
+  padding: 48px 64px;
+  box-shadow: 0 30px 90px rgba(0,0,0,.55);
+  backdrop-filter: blur(18px);
+  position: relative;
+  max-width: 420px;
+}
+/* Lueur douce derrière la carte */
+.login-box::before {
+  content: "";
+  position: absolute; inset: -60px; z-index: -1;
+  background: radial-gradient(ellipse at 50% 30%, rgba(74,222,128,.14), transparent 65%);
+  pointer-events: none;
+}
+
+.login-eyebrow {
+  display: block;
+  font-size: 11px; font-weight: 600; letter-spacing: 4px;
+  text-transform: uppercase; color: var(--accent);
+  margin-bottom: 10px;
+}
+.login-title {
+  font-size: 26px; font-weight: 700; letter-spacing: -.3px;
+  margin-bottom: 6px;
+}
+.login-sub {
+  font-size: 13.5px; color: var(--muted);
+  margin-bottom: 30px; line-height: 1.5;
+}
+
+/* Bouton Microsoft sombre, discret */
+.btn-ms {
+  width: 100%; justify-content: center;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.14);
+  color: var(--text); font-weight: 600; font-size: 14.5px;
+  border-radius: 12px; padding: 13px 24px;
+  transition: border-color .2s, background .2s, transform .15s, box-shadow .2s;
+}
+.btn-ms:hover {
+  transform: translateY(-1px);
+  background: rgba(255,255,255,.1);
+  border-color: rgba(74,222,128,.5);
+  box-shadow: 0 8px 30px rgba(74,222,128,.12);
+}
+.btn-ms:disabled { opacity: .5; }
+
+.login-foot {
+  display: block; margin-top: 18px;
+  font-size: 11px; color: var(--muted); opacity: .6;
+  letter-spacing: .3px;
+}
+
+/* Affinage global : bordures plus fines, panneaux plus doux */
+.servers-panel, .news-panel {
+  border-color: rgba(255,255,255,.06);
+}
+.servers-panel h3, .news-panel h3 {
+  font-weight: 600; letter-spacing: 2.5px; font-size: 11px;
+}
+.server-card { border-color: rgba(255,255,255,.08); border-radius: 12px; }
+.btn-link { border-width: 1px; }
+
+/* Carte de connexion : sans halo vert, fond noir léger */
+.login-box::before { display: none; }
+.login-box {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+}
+
+/* Bouton lecture/pause de la vidéo de fond */
+.bg-play {
+  position: fixed; bottom: 70px; right: 16px; z-index: 40;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(0,0,0,.45); border: 1px solid rgba(255,255,255,.25);
+  color: #fff; font-size: 13px; cursor: pointer;
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .2s, transform .15s, background .2s;
+}
+.bg-play:hover {
+  border-color: #fff; background: rgba(0,0,0,.65);
+  transform: scale(1.1);
+}
+
+/* Bouton JOUER en mode METTRE À JOUR (vert) */
+.btn-play.update-mode {
+  font-size: 30px; letter-spacing: 3px;
+  background-image: linear-gradient(180deg, #86efac, #4ade80 50%, #16a34a);
+  -webkit-text-stroke: 1px #052e16;
+  text-shadow: 0 3px 0 #14532d, 0 6px 0 #0b2e18, 0 10px 24px rgba(0,0,0,.8);
+}
+.btn-play.update-mode:hover:not(:disabled) {
+  filter: brightness(1.15) drop-shadow(0 0 22px rgba(74,222,128,.45));
+}

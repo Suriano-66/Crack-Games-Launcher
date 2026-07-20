@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("launcher", {
 
   // Jeu
   launch: (server) => ipcRenderer.invoke("game:launch", server),
+  repair: (serverId) => ipcRenderer.invoke("game:repair", serverId),
   onProgress: (cb) => ipcRenderer.on("game:progress", (_e, d) => cb(d)),
   onStarted: (cb) => ipcRenderer.on("game:started", () => cb()),
   onClosed: (cb) => ipcRenderer.on("game:closed", (_e, code) => cb(code)),

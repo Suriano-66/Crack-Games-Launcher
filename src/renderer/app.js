@@ -63,17 +63,37 @@ launcher.onUpdateAvailable((d) => {
 launcher.onUpdateProgress((d) => {
   $("update-text").textContent = `Téléchargement de la mise à jour... ${d.percent}%`;
 });
+let updateReady = false;
 launcher.onUpdateReady(() => {
+  updateReady = true;
   $("update-banner").classList.remove("hidden");
   $("update-text").textContent = "Mise à jour prête !";
   $("btn-update").classList.remove("hidden");
+  // Le bouton JOUER devient METTRE À JOUR
+  const btn = $("btn-play");
+  btn.disabled = false;
+  btn.textContent = "METTRE À JOUR";
+  btn.classList.add("update-mode");
 });
 $("btn-update").onclick = () => launcher.installUpdate();
 
 // ---------- Liens ----------
+// Fond vidéo de l'écran de connexion (boucle, sans son)
+function showLoginBackground() {
+  if (config?.loginBackground && $("screen-login").classList.contains("active")) {
+    setBackground(config.loginBackground, { loop: true, muted: true });
+  }
+}
+
 (async () => {
   config = await launcher.getConfig();
+  if (!settings) settings = await launcher.getSettings(); // avant la 1re vidéo (volume, pause)
   if (config.appVersion) $("app-version").textContent = "v" + config.appVersion;
+  if (config.loginBackground && $("screen-login").classList.contains("active")) {
+    showLoginBackground(); // le noir de démarrage se lève quand la vidéo est prête
+  } else {
+    $("bg-fade").classList.remove("visible"); // pas de vidéo de login : on lève le noir
+  }
   document.querySelectorAll(".btn-link").forEach((b) => {
     const url = config.links?.[b.dataset.link];
     if (!url) { b.style.display = "none"; return; }
@@ -82,18 +102,64 @@ $("btn-update").onclick = () => launcher.installUpdate();
 })();
 
 // ---------- Paramètres ----------
+let settings = null;
+(async () => { settings = await launcher.getSettings(); })();
+
+function saveSettings(patch) {
+  settings = { ...settings, ...patch };
+  launcher.setSettings(patch);
+}
+
 $("btn-settings").onclick = async () => {
-  const s = await launcher.getSettings();
-  $("ram-slider").value = s.ram;
-  $("ram-value").textContent = s.ram + " Go";
+  settings = await launcher.getSettings();
+  // RAM : maximum adapté à la machine (on laisse 2 Go au système)
+  const maxRam = Math.max(4, settings.totalRam - 2);
+  $("ram-slider").max = maxRam;
+  $("ram-slider").value = Math.min(settings.ram, maxRam);
+  $("ram-value").textContent = $("ram-slider").value + " Go";
+  $("ram-hint").textContent = `Ta machine a ${settings.totalRam} Go de RAM`;
+  $("volume-slider").value = settings.volume;
+  $("volume-value").textContent = settings.volume + "%";
+  $("chk-fullscreen").checked = settings.fullscreen;
+  $("inp-width").value = settings.width;
+  $("inp-height").value = settings.height;
+  $("size-row").style.opacity = settings.fullscreen ? ".4" : "1";
+  $("chk-close-launcher").checked = settings.closeLauncher;
   $("settings-modal").classList.remove("hidden");
 };
-$("ram-slider").oninput = (e) => {
-  $("ram-value").textContent = e.target.value + " Go";
+
+$("ram-slider").oninput = (e) => { $("ram-value").textContent = e.target.value + " Go"; };
+$("ram-slider").onchange = (e) => saveSettings({ ram: parseInt(e.target.value) });
+
+$("volume-slider").oninput = (e) => { $("volume-value").textContent = e.target.value + "%"; };
+$("volume-slider").onchange = (e) => {
+  saveSettings({ volume: parseInt(e.target.value) });
+  // Appliqué immédiatement à la vidéo en cours
+  if (activeLayer?.tagName === "VIDEO") activeLayer.volume = settings.volume / 100;
 };
-$("ram-slider").onchange = (e) => {
-  launcher.setSettings({ ram: parseInt(e.target.value) });
+
+$("chk-fullscreen").onchange = (e) => {
+  saveSettings({ fullscreen: e.target.checked });
+  $("size-row").style.opacity = e.target.checked ? ".4" : "1";
 };
+$("inp-width").onchange = (e) => saveSettings({ width: parseInt(e.target.value) || 1280 });
+$("inp-height").onchange = (e) => saveSettings({ height: parseInt(e.target.value) || 720 });
+$("chk-close-launcher").onchange = (e) => saveSettings({ closeLauncher: e.target.checked });
+
+$("btn-repair").onclick = async () => {
+  if (!selected) {
+    $("progress-text").textContent = "Sélectionne d'abord un serveur à réparer.";
+    $("settings-modal").classList.add("hidden");
+    return;
+  }
+  if (!confirm(`Réparer ${selected.name} ? Ses fichiers seront supprimés puis retéléchargés.`)) return;
+  const res = await launcher.repair(selected.id);
+  $("settings-modal").classList.add("hidden");
+  $("progress-text").textContent = res.ok
+    ? selected.name + " réinitialisé. Clique sur JOUER pour tout réinstaller."
+    : "Erreur : " + res.error;
+};
+
 $("btn-gamedir").onclick = () => launcher.openGameDir();
 $("btn-close-settings").onclick = () => $("settings-modal").classList.add("hidden");
 $("settings-modal").onclick = (e) => {
@@ -107,6 +173,8 @@ async function onLoggedIn(profile) {
   $("player-head").src = `https://mc-heads.net/avatar/${profile.uuid}/22`;
   $("screen-login").classList.remove("active");
   $("screen-main").classList.add("active");
+  // Fond de l'écran principal tant qu'aucun serveur n'est choisi
+  setBackground(config?.mainBackground || null, { loop: true, muted: true });
   await loadServers();
   await loadNews();
 }
@@ -116,6 +184,7 @@ function showLogin() {
   $("screen-login").classList.add("active");
   $("account-menu").classList.add("hidden");
   $("player-chip").classList.add("hidden");
+  showLoginBackground();
   if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
 }
 
@@ -272,39 +341,84 @@ function swapTo(next) {
   activeLayer = next;
 }
 
-function showVideo(url) {
-  if (activeLayer?.dataset.src === url) return;
+// Renvoie une promesse résolue quand le média est prêt à s'afficher
+function whenReady(el, event) {
+  return new Promise((res) => {
+    let done = false;
+    const ok = () => { if (!done) { done = true; res(); } };
+    el.addEventListener(event, ok, { once: true });
+    setTimeout(ok, 5000); // sécurité : on ne bloque jamais plus de 5 s
+  });
+}
+
+function showVideo(url, opts = {}) {
+  if (activeLayer?.dataset.src === url) return Promise.resolve();
   vidToggle = !vidToggle;
   const el = $(vidToggle ? "bg-video-a" : "bg-video-b");
   el.src = url;
   el.dataset.src = url;
   el.currentTime = 0;
-  el.muted = false;
-  el.volume = 0.5; // son de la vidéo
-  el.play().catch(() => {}); // se joue une fois puis se fige sur la dernière image
+  el.loop = opts.loop !== false; // toutes les vidéos tournent en boucle
+  el.muted = opts.muted || false;
+  el.volume = (settings?.volume ?? 15) / 100; // son de la vidéo (réglable dans ⚙)
+  const ready = whenReady(el, "canplay");
+  // Si l'utilisateur a mis en pause, on respecte son choix (première image affichée)
+  if (!settings?.bgPaused) el.play().catch(() => {});
   swapTo(el);
+  return ready;
 }
 
+// Bouton lecture/pause de la vidéo de fond (icônes SVG blanches)
+const ICON_PAUSE =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><rect x="5" y="4" width="5" height="16" rx="1.5"/><rect x="14" y="4" width="5" height="16" rx="1.5"/></svg>';
+const ICON_PLAY =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><path d="M7 4.5l13 7.5-13 7.5z"/></svg>';
+
+function updatePlayBtn(show) {
+  const b = $("btn-bgplay");
+  b.classList.toggle("hidden", !show);
+  b.innerHTML = settings?.bgPaused ? ICON_PLAY : ICON_PAUSE;
+}
+$("btn-bgplay").onclick = () => {
+  const v = activeLayer;
+  if (!v || v.tagName !== "VIDEO") return;
+  if (v.paused) {
+    v.play().catch(() => {});
+    saveSettings({ bgPaused: false }); // préférence mémorisée
+    $("btn-bgplay").innerHTML = ICON_PAUSE;
+  } else {
+    v.pause();
+    saveSettings({ bgPaused: true });
+    $("btn-bgplay").innerHTML = ICON_PLAY;
+  }
+};
+
 function showImage(url) {
-  if (activeLayer?.dataset.src === url) return;
+  if (activeLayer?.dataset.src === url) return Promise.resolve();
   imgToggle = !imgToggle;
   const el = $(imgToggle ? "bg-img-a" : "bg-img-b");
   el.src = url;
   el.dataset.src = url;
+  const ready = whenReady(el, "load");
   swapTo(el);
+  return ready;
 }
 
 let currentBgKey = null;
-function setBackground(bg) {
+function setBackground(bg, opts) {
   const key = JSON.stringify(bg || null);
   if (key === currentBgKey) return; // même fond, pas de transition
   currentBgKey = key;
   if (slideTimer) { clearInterval(slideTimer); slideTimer = null; }
 
-  // Transition en fondu noir : on assombrit, on change le fond, on rouvre
+  // Transition en fondu noir : on assombrit, on change le fond SOUS le noir
+  // (instantané, sans fondu croisé), et on ne rouvre que quand c'est prêt
   const fade = $("bg-fade");
+  const layers = ["bg-video-a", "bg-video-b", "bg-img-a", "bg-img-b"].map((id) => $(id));
   fade.classList.add("visible");
-  setTimeout(() => {
+  setTimeout(async () => {
+    layers.forEach((l) => l.classList.add("no-fade")); // pas de fondu croisé sous le noir
+    let ready = Promise.resolve();
     if (!bg || (Array.isArray(bg) && bg.length === 0)) {
       if (activeLayer) {
         if (activeLayer.tagName === "VIDEO") activeLayer.pause();
@@ -314,13 +428,16 @@ function setBackground(bg) {
     } else if (Array.isArray(bg)) {
       // Diaporama photos : fondu toutes les 7 secondes
       let idx = 0;
-      const next = () => { showImage(bg[idx % bg.length]); idx++; };
-      next();
+      const next = () => showImage(bg[idx++ % bg.length]);
+      ready = next();
       if (bg.length > 1) slideTimer = setInterval(next, 7000);
     } else {
-      isVideoUrl(bg) ? showVideo(bg) : showImage(bg);
+      ready = isVideoUrl(bg) ? showVideo(bg, opts) : showImage(bg);
     }
-    setTimeout(() => fade.classList.remove("visible"), 250);
+    await ready; // on attend que la vidéo/photo soit chargée
+    fade.classList.remove("visible");
+    updatePlayBtn(!!bg && !Array.isArray(bg) && isVideoUrl(bg));
+    setTimeout(() => layers.forEach((l) => l.classList.remove("no-fade")), 700);
   }, 580);
 }
 
@@ -351,6 +468,7 @@ function selectServer(s, card) {
   zone.style.animation = "none";
   void zone.offsetWidth; // force le redémarrage de l'animation bounce
   zone.style.animation = "";
+  if (updateReady) return; // le bouton reste METTRE À JOUR
   if (s.maintenance) {
     $("btn-play").disabled = true;
     $("progress-text").textContent = "⚠ " + s.name + " est en maintenance.";
@@ -377,6 +495,7 @@ const PROGRESS_LABELS = {
 };
 
 $("btn-play").onclick = async () => {
+  if (updateReady) return launcher.installUpdate(); // installe et redémarre
   if (!selected) return;
   const btn = $("btn-play");
   btn.disabled = true;

@@ -1,6 +1,6 @@
 {
   "name": "crackgames-launcher",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Crack Games Launcher - Minecraft Premium",
   "main": "src/main.js",
   "scripts": {
