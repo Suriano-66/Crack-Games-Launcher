@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld("launcher", {
   // Jeu
   launch: (server) => ipcRenderer.invoke("game:launch", server),
   repair: (serverId) => ipcRenderer.invoke("game:repair", serverId),
+  checkPack: (server) => ipcRenderer.invoke("pack:check", server),
+  updatePack: (server) => ipcRenderer.invoke("pack:update", server),
   onProgress: (cb) => ipcRenderer.on("game:progress", (_e, d) => cb(d)),
   onStarted: (cb) => ipcRenderer.on("game:started", () => cb()),
   onClosed: (cb) => ipcRenderer.on("game:closed", (_e, code) => cb(code)),
@@ -35,5 +37,7 @@ contextBridge.exposeInMainWorld("launcher", {
   onUpdateProgress: (cb) => ipcRenderer.on("update:progress", (_e, d) => cb(d)),
   onUpdateReady: (cb) => ipcRenderer.on("update:ready", () => cb()),
   onUpdateError: (cb) => ipcRenderer.on("update:error", (_e, d) => cb(d)),
+  onUpdateLog: (cb) => ipcRenderer.on("update:log", (_e, d) => cb(d)),
+  openUpdateLog: () => ipcRenderer.send("update:openlog"),
   installUpdate: () => ipcRenderer.send("update:install"),
 });

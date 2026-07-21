@@ -71,8 +71,23 @@ function armUpdateStallTimer(version) {
     btn.textContent = "Télécharger manuellement";
     btn.onclick = () =>
       launcher.openLink("https://github.com/Suriano-66/Crack-Games-Launcher/releases/latest");
+    $("btn-update-log").classList.remove("hidden");
+    // Détail technique visible sous la bannière
+    const dbg = $("update-debug");
+    if (dbg) {
+      dbg.classList.remove("hidden");
+      dbg.textContent = lastUpdateLog || "(aucun détail)";
+    }
   }, 90000);
 }
+
+// Dernière ligne de log de la mise à jour (diagnostic)
+let lastUpdateLog = "";
+launcher.onUpdateLog((d) => {
+  lastUpdateLog = d.line;
+  const dbg = $("update-debug");
+  if (dbg && !dbg.classList.contains("hidden")) dbg.textContent = d.line;
+});
 
 launcher.onUpdateAvailable((d) => {
   $("update-banner").classList.remove("hidden");
@@ -97,6 +112,7 @@ launcher.onUpdateReady(() => {
   btn.classList.add("update-mode");
 });
 $("btn-update").onclick = () => launcher.installUpdate();
+$("btn-update-log").onclick = () => launcher.openUpdateLog();
 
 // Erreur de mise à jour : on prévient et on propose le téléchargement manuel
 launcher.onUpdateError((d) => {
@@ -107,6 +123,7 @@ launcher.onUpdateError((d) => {
   const btn = $("btn-update");
   btn.classList.remove("hidden");
   btn.textContent = "Télécharger";
+  $("btn-update-log").classList.remove("hidden");
   btn.onclick = () =>
     launcher.openLink(
       config?.links?.site ||
@@ -538,13 +555,56 @@ function selectServer(s, card) {
   zone.style.animation = "none";
   void zone.offsetWidth; // force le redémarrage de l'animation bounce
   zone.style.animation = "";
-  if (updateReady) return; // le bouton reste METTRE À JOUR
+  if (updateReady) return; // le bouton reste METTRE À JOUR (launcher)
   if (s.maintenance) {
     $("btn-play").disabled = true;
+    $("btn-play").textContent = "JOUER";
+    $("btn-play").classList.remove("pack-mode");
+    packNeedsUpdate = false;
     $("progress-text").textContent = "⚠ " + s.name + " est en maintenance.";
   } else {
     $("btn-play").disabled = false;
     $("progress-text").textContent = "";
+    checkPackUpdate(s);
+  }
+}
+
+// ---------- Mise à jour du modpack ----------
+let packNeedsUpdate = false;
+
+async function checkPackUpdate(server) {
+  packNeedsUpdate = false;
+  const btn = $("btn-play");
+  btn.textContent = "JOUER";
+  btn.classList.remove("pack-mode");
+  if (!server.modsZip?.url) return;
+
+  const res = await launcher.checkPack(server);
+  if (!res.ok || !res.needsUpdate) return;
+  if (selected?.id !== server.id || updateReady) return; // le joueur a changé de serveur
+
+  packNeedsUpdate = true;
+  btn.textContent = res.installed ? "METTRE À JOUR" : "INSTALLER";
+  btn.classList.add("pack-mode");
+  $("progress-text").textContent = res.installed
+    ? "Une nouvelle version du modpack est disponible."
+    : "Le modpack doit être installé avant de jouer.";
+}
+
+async function doPackUpdate() {
+  const btn = $("btn-play");
+  btn.disabled = true;
+  $("progress-text").textContent = "Mise à jour du modpack...";
+  const res = await launcher.updatePack(selected);
+  btn.disabled = false;
+  $("progress-fill").style.width = "0%";
+  if (res.ok) {
+    packNeedsUpdate = false;
+    btn.textContent = "JOUER";
+    btn.classList.remove("pack-mode");
+    $("progress-text").textContent = "✔ Modpack à jour, bon jeu !";
+  } else {
+    $("progress-text").textContent = "Erreur : " + res.error;
   }
 }
 
@@ -565,8 +625,9 @@ const PROGRESS_LABELS = {
 };
 
 $("btn-play").onclick = async () => {
-  if (updateReady) return launcher.installUpdate(); // installe et redémarre
+  if (updateReady) return launcher.installUpdate(); // mise à jour du launcher
   if (!selected) return;
+  if (packNeedsUpdate) return doPackUpdate(); // mise à jour du modpack
   const btn = $("btn-play");
   btn.disabled = true;
   $("progress-text").textContent = "Préparation de " + selected.name + "...";

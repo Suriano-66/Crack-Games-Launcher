@@ -726,3 +726,33 @@ body { font-family: "Poppins", "Segoe UI", sans-serif; }
 .btn-play.update-mode:hover:not(:disabled) {
   filter: brightness(1.15) drop-shadow(0 0 22px rgba(74,222,128,.45));
 }
+
+/* Détail technique de la mise à jour */
+.update-debug {
+  position: fixed; top: 40px; left: 0; right: 0; z-index: 99;
+  background: rgba(0,0,0,.85); color: #fbbf24;
+  font-family: monospace; font-size: 10.5px;
+  padding: 5px 12px; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.update-banner button { margin-left: 6px; }
+
+/* La bannière de mise à jour doit rester cliquable :
+   la barre de titre (zone de drag) la recouvrait et avalait les clics. */
+.update-banner, .update-banner button, .update-debug {
+  -webkit-app-region: no-drag !important;
+}
+.update-banner { z-index: 200 !important; }
+.update-debug { z-index: 199 !important; }
+.update-banner button { cursor: pointer; position: relative; z-index: 201; }
+
+/* Bouton JOUER en mode "mise à jour du modpack" (bleu) */
+.btn-play.pack-mode {
+  font-size: 30px; letter-spacing: 3px;
+  background-image: linear-gradient(180deg, #93c5fd, #3b82f6 50%, #1d4ed8);
+  -webkit-text-stroke: 1px #172554;
+  text-shadow: 0 3px 0 #1e3a8a, 0 6px 0 #172554, 0 10px 24px rgba(0,0,0,.8);
+}
+.btn-play.pack-mode:hover:not(:disabled) {
+  filter: brightness(1.15) drop-shadow(0 0 22px rgba(59,130,246,.5));
+}

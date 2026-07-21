@@ -156,12 +156,24 @@ function initAutoUpdate() {
   // on force le téléchargement complet, plus fiable.
   autoUpdater.disableDifferentialDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  // Journalisation : console + fichier + affichage dans la bannière
+  const logFile = path.join(app.getPath("userData"), "update.log");
+  const writeLog = (level, m) => {
+    const line = `[${new Date().toISOString()}] ${level} ${m}`;
+    console.log("[update]", m);
+    try { fs.appendFileSync(logFile, line + "\n"); } catch {}
+    try { win?.webContents.send("update:log", { line: String(m).slice(0, 160) }); } catch {}
+  };
   autoUpdater.logger = {
-    info: (m) => console.log("[update]", m),
-    warn: (m) => console.warn("[update]", m),
-    error: (m) => console.error("[update]", m),
+    info: (m) => writeLog("INFO", m),
+    warn: (m) => writeLog("WARN", m),
+    error: (m) => writeLog("ERROR", m),
     debug: () => {},
   };
+  writeLog("INFO", "Version installée : " + app.getVersion());
+
+  // Ouvrir le fichier de log depuis l'interface
+  ipcMain.on("update:openlog", () => shell.openPath(logFile));
 
   autoUpdater.on("update-available", (info) =>
     win.webContents.send("update:available", { version: info.version })
@@ -532,6 +544,101 @@ async function ensureNeoforgeLibraries(root, jar, send) {
   }
 }
 
+// ---------- Pack de mods : détection + installation ----------
+
+/** Empreinte attendue du pack distant (version + ETag/taille du zip). */
+async function packRemoteTag(server) {
+  let remoteTag = "";
+  try {
+    const head = await fetch(server.modsZip.url, { method: "HEAD" });
+    if (head.ok) {
+      remoteTag =
+        (head.headers.get("etag") || "").replace(/"/g, "") +
+        "-" + (head.headers.get("content-length") || "");
+    }
+  } catch {}
+  return String(server.modsZip.version || "") + "|" + remoteTag;
+}
+
+/** Le pack installé est-il à jour ? */
+ipcMain.handle("pack:check", async (_e, server) => {
+  try {
+    if (!server?.modsZip?.url) return { ok: true, needsUpdate: false, installed: true };
+    const root = path.join(GAME_DIR(), "instances", server.id);
+    const marker = path.join(root, "mods", ".pack-version");
+    const installed = fs.existsSync(marker);
+    const want = await packRemoteTag(server);
+    const have = installed ? fs.readFileSync(marker, "utf-8") : null;
+    return { ok: true, needsUpdate: have !== want, installed };
+  } catch (e) {
+    return { ok: false, error: fmtErr(e) };
+  }
+});
+
+/** Installe (ou met à jour) le pack de mods. */
+async function installPack(server, send) {
+  if (!server.modsZip?.url) return false;
+  const root = path.join(GAME_DIR(), "instances", server.id);
+  fs.mkdirSync(root, { recursive: true });
+  const modsDir = path.join(root, "mods");
+  const marker = path.join(modsDir, ".pack-version");
+  const want = await packRemoteTag(server);
+  const have = fs.existsSync(marker) ? fs.readFileSync(marker, "utf-8") : null;
+  if (have === want) return false; // déjà à jour
+
+  rmSafe(modsDir);
+  fs.mkdirSync(modsDir, { recursive: true });
+  const zipPath = path.join(root, "modpack.zip");
+  send("modpack", 0, 100);
+  await downloadFile(server.modsZip.url, zipPath, (p) => send("modpack", p, 100));
+
+  const extract = require("extract-zip");
+  const tmp = path.join(root, "modpack-extract");
+  rmSafe(tmp);
+  await extract(zipPath, { dir: tmp });
+
+  // Le zip peut contenir les .jar à la racine ou dans un dossier mods/
+  const src = fs.existsSync(path.join(tmp, "mods")) ? path.join(tmp, "mods") : tmp;
+  for (const f of fs.readdirSync(src)) {
+    if (f.endsWith(".jar")) copySafe(path.join(src, f), path.join(modsDir, f));
+  }
+  // Le reste (options.txt, config/, resourcepacks/...) sans écraser l'existant
+  for (const entry of fs.readdirSync(tmp)) {
+    if (entry === "mods") continue;
+    const from = path.join(tmp, entry);
+    const to = path.join(root, entry);
+    if (fs.statSync(from).isDirectory()) {
+      fs.cpSync(from, to, { recursive: true, force: false });
+    } else if (!entry.endsWith(".jar") && !fs.existsSync(to)) {
+      copySafe(from, to);
+    }
+  }
+  rmSafe(tmp);
+  try { fs.unlinkSync(zipPath); } catch {}
+
+  // Manifeste anti-triche
+  const manifest = { files: {} };
+  for (const f of fs.readdirSync(modsDir)) {
+    if (f.endsWith(".jar")) manifest.files[f] = sha256(path.join(modsDir, f));
+  }
+  writeJson(path.join(root, ".mods-manifest.json"), manifest);
+  fs.writeFileSync(marker, want);
+  return true;
+}
+
+/** Mise à jour du pack déclenchée par le bouton du launcher. */
+ipcMain.handle("pack:update", async (_e, server) => {
+  try {
+    const send = (type, task, total) =>
+      win.webContents.send("game:progress", { type, task, total });
+    const updated = await installPack(server, send);
+    return { ok: true, updated };
+  } catch (e) {
+    console.error("[pack:update]", e);
+    return { ok: false, error: fmtErr(e) };
+  }
+});
+
 // ---------- Lancement du jeu ----------
 ipcMain.handle("game:launch", async (_evt, server) => {
   if (!authResult) return { ok: false, error: "Non connecté" };
@@ -548,62 +655,8 @@ ipcMain.handle("game:launch", async (_evt, server) => {
     send("java", 0, 100);
     const javaPath = await ensureJava(server.version, (p) => send("java", p, 100));
 
-    // 2a. Pack de mods complet (zip) — retéléchargé quand "version" change
-    if (server.modsZip?.url) {
-      const modsDir = path.join(root, "mods");
-      const marker = path.join(modsDir, ".pack-version");
-      // Empreinte du fichier distant (taille + ETag) : si tu remplaces le zip
-      // dans la même release, la mise à jour se fait quand même.
-      let remoteTag = "";
-      try {
-        const head = await fetch(server.modsZip.url, { method: "HEAD" });
-        if (head.ok) {
-          remoteTag =
-            (head.headers.get("etag") || "").replace(/"/g, "") +
-            "-" + (head.headers.get("content-length") || "");
-        }
-      } catch {}
-      const want = String(server.modsZip.version || "") + "|" + remoteTag;
-      const have = fs.existsSync(marker) ? fs.readFileSync(marker, "utf-8") : null;
-      if (have !== want) {
-        rmSafe(modsDir);
-        fs.mkdirSync(modsDir, { recursive: true });
-        const zipPath = path.join(root, "modpack.zip");
-        send("modpack", 0, 100);
-        await downloadFile(server.modsZip.url, zipPath, (p) => send("modpack", p, 100));
-        const extract = require("extract-zip");
-        const tmp = path.join(root, "modpack-extract");
-        rmSafe(tmp);
-        await extract(zipPath, { dir: tmp });
-        // Le zip peut contenir les .jar à la racine ou dans un dossier mods/
-        const src = fs.existsSync(path.join(tmp, "mods")) ? path.join(tmp, "mods") : tmp;
-        for (const f of fs.readdirSync(src)) {
-          if (f.endsWith(".jar")) copySafe(path.join(src, f), path.join(modsDir, f));
-        }
-        // Tout le reste (options.txt, config/, resourcepacks/, shaderpacks/...)
-        // est copié dans l'instance SANS écraser les fichiers existants :
-        // les réglages personnels des joueurs sont préservés
-        for (const entry of fs.readdirSync(tmp)) {
-          if (entry === "mods") continue;
-          const from = path.join(tmp, entry);
-          const to = path.join(root, entry);
-          if (fs.statSync(from).isDirectory()) {
-            fs.cpSync(from, to, { recursive: true, force: false });
-          } else if (!entry.endsWith(".jar") && !fs.existsSync(to)) {
-            copySafe(from, to);
-          }
-        }
-        rmSafe(tmp);
-        fs.unlinkSync(zipPath);
-        // Manifeste anti-triche : empreinte de chaque mod officiel
-        const manifest = { files: {} };
-        for (const f of fs.readdirSync(modsDir)) {
-          if (f.endsWith(".jar")) manifest.files[f] = sha256(path.join(modsDir, f));
-        }
-        writeJson(path.join(root, ".mods-manifest.json"), manifest);
-        fs.writeFileSync(marker, want);
-      }
-    }
+    // 2a. Pack de mods (installé/mis à jour si nécessaire)
+    if (server.modsZip?.url) await installPack(server, send);
 
     // 2b. Mods individuels
     if (Array.isArray(server.mods) && server.mods.length) {
