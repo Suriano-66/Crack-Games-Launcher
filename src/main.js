@@ -459,6 +459,22 @@ ipcMain.handle("servers:ping", async (_e, list) => {
 
 // ---------- Actualités ----------
 ipcMain.handle("news:get", async () => {
+  // 1) Endpoint frais du backend (pas de cache CDN → apparition quasi immédiate)
+  if (CONFIG.apiUrl) {
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 4000); // backend endormi (Render) : on n'attend pas
+      const res = await fetch(CONFIG.apiUrl.replace(/\/$/, "") + "/api/news", {
+        cache: "no-store", signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      if (res.ok) {
+        const j = await res.json();
+        if (Array.isArray(j.news)) return { ok: true, news: j.news };
+      }
+    } catch {}
+  }
+  // 2) Repli sur raw GitHub (~5 min de cache, mais toujours disponible)
   try {
     if (CONFIG.newsUrl) {
       const bust = (CONFIG.newsUrl.includes("?") ? "&" : "?") + "t=" + Date.now();
@@ -466,6 +482,7 @@ ipcMain.handle("news:get", async () => {
       if (res.ok) return { ok: true, news: (await res.json()).news };
     }
   } catch {}
+  // 3) Dernier recours : fichier local livré avec le launcher
   const local = readJson(path.join(__dirname, "..", "news.json"), { news: [] });
   return { ok: true, news: local.news };
 });

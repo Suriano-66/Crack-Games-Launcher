@@ -1,6 +1,7 @@
 {
   "serversUrl": "https://raw.githubusercontent.com/Suriano-66/Crack-Games-Launcher/main/servers.json",
   "newsUrl": "https://raw.githubusercontent.com/Suriano-66/Crack-Games-Launcher/main/news.json",
+  "apiUrl": "https://crackgames-site.onrender.com",
   "launcherName": "Crack Games Launcher",
   "loginBackground": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/loginfond.mp4",
   "mainBackground": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/loginfond.mp4",
