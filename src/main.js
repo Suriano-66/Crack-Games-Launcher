@@ -34,6 +34,9 @@ function writeJson(file, data) {
 
 function fmtErr(e) {
   if (typeof e === "string") return e;
+  if (e?.step === "session" || e?.message === "session-expired") {
+    return "Ta session Microsoft a expiré. Clique sur ton pseudo en haut à droite puis « Se déconnecter », et reconnecte-toi.";
+  }
   const raw = e?.message || e?.reason || e?.name || JSON.stringify(e);
   const s = String(raw).toLowerCase();
   if (s.includes("closed") || s.includes("cancel"))
@@ -216,17 +219,36 @@ async function refreshAccount(uuid) {
   return profile;
 }
 
-// Session Minecraft valable ~24h : on la met en cache 6h pour éviter le rate-limit
+// Session Minecraft valable ~24h : on la met en cache 6h pour éviter le rate-limit.
+// Si elle est périmée, on rafraîchit le compte ; en dernier recours on demande
+// une reconnexion (au lieu d'afficher une erreur trompeuse).
 async function getMc() {
   if (mcSession && Date.now() - mcSessionAt < 6 * 3600 * 1000) return mcSession;
-  try {
-    mcSession = await authResult.getMinecraft();
-    mcSessionAt = Date.now();
-  } catch {
-    const db = loadAccounts();
-    await refreshAccount(db.current);
+
+  // 1re tentative avec la session courante
+  if (authResult) {
+    try {
+      mcSession = await authResult.getMinecraft();
+      mcSessionAt = Date.now();
+      return mcSession;
+    } catch (e) {
+      console.warn("[auth] session expirée, rafraîchissement...", e?.message || e);
+    }
   }
-  return mcSession;
+
+  // 2e tentative : on rejoue le refresh token du compte courant
+  try {
+    const db = loadAccounts();
+    if (!db.current) throw new Error("no-account");
+    await refreshAccount(db.current);
+    if (mcSession) return mcSession;
+  } catch (e) {
+    console.error("[auth] rafraîchissement impossible :", e?.message || e);
+  }
+
+  const err = new Error("session-expired");
+  err.step = "session";
+  throw err;
 }
 
 ipcMain.handle("auth:restore", async () => {
@@ -451,7 +473,18 @@ ipcMain.handle("game:launch", async (_evt, server) => {
     if (server.modsZip?.url) {
       const modsDir = path.join(root, "mods");
       const marker = path.join(modsDir, ".pack-version");
-      const want = String(server.modsZip.version || server.modsZip.url);
+      // Empreinte du fichier distant (taille + ETag) : si tu remplaces le zip
+      // dans la même release, la mise à jour se fait quand même.
+      let remoteTag = "";
+      try {
+        const head = await fetch(server.modsZip.url, { method: "HEAD" });
+        if (head.ok) {
+          remoteTag =
+            (head.headers.get("etag") || "").replace(/"/g, "") +
+            "-" + (head.headers.get("content-length") || "");
+        }
+      } catch {}
+      const want = String(server.modsZip.version || "") + "|" + remoteTag;
       const have = fs.existsSync(marker) ? fs.readFileSync(marker, "utf-8") : null;
       if (have !== want) {
         fs.rmSync(modsDir, { recursive: true, force: true });
