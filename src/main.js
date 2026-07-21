@@ -152,6 +152,16 @@ function initAutoUpdate() {
   if (!app.isPackaged) return; // seulement sur la version installée
   const { autoUpdater } = require("electron-updater");
   autoUpdater.autoDownload = true;
+  // Le téléchargement différentiel (blockmap) se bloque souvent avec GitHub :
+  // on force le téléchargement complet, plus fiable.
+  autoUpdater.disableDifferentialDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.logger = {
+    info: (m) => console.log("[update]", m),
+    warn: (m) => console.warn("[update]", m),
+    error: (m) => console.error("[update]", m),
+    debug: () => {},
+  };
 
   autoUpdater.on("update-available", (info) =>
     win.webContents.send("update:available", { version: info.version })
