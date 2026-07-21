@@ -56,16 +56,37 @@ $("btn-close").onclick = () => launcher.close();
 })();
 
 // ---------- Mise à jour automatique ----------
+let updateStallTimer = null;
+function armUpdateStallTimer(version) {
+  clearTimeout(updateStallTimer);
+  updateStallTimer = setTimeout(() => {
+    // Rien n'a progressé : on propose le téléchargement manuel
+    const banner = $("update-banner");
+    banner.classList.remove("hidden");
+    banner.style.background = "linear-gradient(90deg, #92400e, #d97706)";
+    $("update-text").textContent =
+      `La mise à jour ${version || ""} n'arrive pas à se télécharger.`;
+    const btn = $("btn-update");
+    btn.classList.remove("hidden");
+    btn.textContent = "Télécharger manuellement";
+    btn.onclick = () =>
+      launcher.openLink("https://github.com/Suriano-66/Crack-Games-Launcher/releases/latest");
+  }, 90000);
+}
+
 launcher.onUpdateAvailable((d) => {
   $("update-banner").classList.remove("hidden");
   $("update-text").textContent = `Mise à jour ${d.version} en cours de téléchargement...`;
+  armUpdateStallTimer(d.version);
 });
 launcher.onUpdateProgress((d) => {
   $("update-text").textContent = `Téléchargement de la mise à jour... ${d.percent}%`;
+  armUpdateStallTimer(); // le téléchargement avance, on repousse l'alerte
 });
 let updateReady = false;
 launcher.onUpdateReady(() => {
   updateReady = true;
+  clearTimeout(updateStallTimer);
   $("update-banner").classList.remove("hidden");
   $("update-text").textContent = "Mise à jour prête !";
   $("btn-update").classList.remove("hidden");

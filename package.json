@@ -1,6 +1,6 @@
 {
   "name": "crackgames-launcher",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Crack Games Launcher - Minecraft Premium",
   "main": "src/main.js",
   "scripts": {
@@ -41,7 +41,8 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
