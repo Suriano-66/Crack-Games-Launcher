@@ -7,6 +7,58 @@ const crypto = require("crypto");
 function sha256(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
+
+/**
+ * Suppression robuste sous Windows : certains fichiers (cache .connector,
+ * jars en lecture seule) refusent d'être effacés. On réessaie, on retire
+ * l'attribut lecture seule, puis on nettoie fichier par fichier.
+ */
+function rmSafe(target) {
+  if (!fs.existsSync(target)) return true;
+  try {
+    fs.rmSync(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 150 });
+    return true;
+  } catch (e) {
+    console.warn("[fs] suppression difficile :", target, e.code);
+  }
+  // Deuxième passage : on force les permissions puis on supprime un par un
+  const walk = (p) => {
+    let st;
+    try { st = fs.lstatSync(p); } catch { return; }
+    if (st.isDirectory()) {
+      for (const f of fs.readdirSync(p)) walk(path.join(p, f));
+      try { fs.rmdirSync(p); } catch {}
+    } else {
+      try { fs.chmodSync(p, 0o666); } catch {}
+      try { fs.unlinkSync(p); } catch (e) {
+        console.warn("[fs] fichier verrouillé, ignoré :", path.basename(p));
+      }
+    }
+  };
+  walk(target);
+  return !fs.existsSync(target);
+}
+
+/** Copie robuste : retire la cible en lecture seule / verrouillée avant d'écrire. */
+function copySafe(src, dest) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (fs.existsSync(dest)) {
+        try { fs.chmodSync(dest, 0o666); } catch {}
+        try { fs.unlinkSync(dest); } catch {}
+      }
+      fs.copyFileSync(src, dest);
+      return true;
+    } catch (e) {
+      if (attempt === 2) {
+        const err = new Error("locked-files");
+        err.step = "locked";
+        err.detail = path.basename(dest);
+        throw err;
+      }
+    }
+  }
+}
 const { Auth } = require("msmc");
 const { Client } = require("minecraft-launcher-core");
 
@@ -36,6 +88,10 @@ function fmtErr(e) {
   if (typeof e === "string") return e;
   if (e?.step === "session" || e?.message === "session-expired") {
     return "Ta session Microsoft a expiré. Clique sur ton pseudo en haut à droite puis « Se déconnecter », et reconnecte-toi.";
+  }
+  if (e?.step === "locked" || e?.code === "EPERM" || e?.code === "EBUSY") {
+    return "Des fichiers du jeu sont verrouillés (" + (e.detail || "mods") +
+      "). Ferme Minecraft s'il est ouvert, ferme l'explorateur de fichiers sur le dossier du jeu, puis réessaie.";
   }
   const raw = e?.message || e?.reason || e?.name || JSON.stringify(e);
   const s = String(raw).toLowerCase();
@@ -106,11 +162,24 @@ function initAutoUpdate() {
   autoUpdater.on("update-downloaded", () =>
     win.webContents.send("update:ready")
   );
-  autoUpdater.on("error", (e) => console.error("[update]", e));
+  autoUpdater.on("error", (e) => {
+    console.error("[update] erreur :", e?.message || e);
+    win.webContents.send("update:error", { message: String(e?.message || e).slice(0, 200) });
+  });
 
-  ipcMain.on("update:install", () => autoUpdater.quitAndInstall());
-  autoUpdater.checkForUpdates();
-  setInterval(() => autoUpdater.checkForUpdates(), 30 * 60 * 1000);
+  ipcMain.on("update:install", () => {
+    try {
+      autoUpdater.quitAndInstall(false, true);
+    } catch (e) {
+      console.error("[update] installation impossible :", e?.message || e);
+      win.webContents.send("update:error", { message: "Installation impossible : " + e?.message });
+    }
+  });
+
+  autoUpdater.checkForUpdates().catch((e) =>
+    console.error("[update] vérification impossible :", e?.message || e)
+  );
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 30 * 60 * 1000);
 }
 
 // ---------- Discord Rich Presence ----------
@@ -160,7 +229,7 @@ ipcMain.handle("settings:set", (_e, s) => {
 ipcMain.handle("game:repair", (_e, serverId) => {
   try {
     if (!serverId || /[\\/.]/.test(serverId)) throw new Error("Serveur invalide");
-    fs.rmSync(path.join(GAME_DIR(), "instances", serverId), { recursive: true, force: true });
+    rmSafe(path.join(GAME_DIR(), "instances", serverId));
     return { ok: true };
   } catch (e) {
     return { ok: false, error: fmtErr(e) };
@@ -438,7 +507,7 @@ async function ensureNeoforgeLibraries(root, jar, send) {
       fs.cpSync(maven, path.join(root, "libraries"), { recursive: true, force: false });
     }
     fs.copyFileSync(path.join(tmp, "install_profile.json"), profileFile);
-    fs.rmSync(tmp, { recursive: true, force: true });
+    rmSafe(tmp);
   }
 
   const profile = JSON.parse(fs.readFileSync(profileFile, "utf-8"));
@@ -487,19 +556,19 @@ ipcMain.handle("game:launch", async (_evt, server) => {
       const want = String(server.modsZip.version || "") + "|" + remoteTag;
       const have = fs.existsSync(marker) ? fs.readFileSync(marker, "utf-8") : null;
       if (have !== want) {
-        fs.rmSync(modsDir, { recursive: true, force: true });
+        rmSafe(modsDir);
         fs.mkdirSync(modsDir, { recursive: true });
         const zipPath = path.join(root, "modpack.zip");
         send("modpack", 0, 100);
         await downloadFile(server.modsZip.url, zipPath, (p) => send("modpack", p, 100));
         const extract = require("extract-zip");
         const tmp = path.join(root, "modpack-extract");
-        fs.rmSync(tmp, { recursive: true, force: true });
+        rmSafe(tmp);
         await extract(zipPath, { dir: tmp });
         // Le zip peut contenir les .jar à la racine ou dans un dossier mods/
         const src = fs.existsSync(path.join(tmp, "mods")) ? path.join(tmp, "mods") : tmp;
         for (const f of fs.readdirSync(src)) {
-          if (f.endsWith(".jar")) fs.copyFileSync(path.join(src, f), path.join(modsDir, f));
+          if (f.endsWith(".jar")) copySafe(path.join(src, f), path.join(modsDir, f));
         }
         // Tout le reste (options.txt, config/, resourcepacks/, shaderpacks/...)
         // est copié dans l'instance SANS écraser les fichiers existants :
@@ -511,10 +580,10 @@ ipcMain.handle("game:launch", async (_evt, server) => {
           if (fs.statSync(from).isDirectory()) {
             fs.cpSync(from, to, { recursive: true, force: false });
           } else if (!entry.endsWith(".jar") && !fs.existsSync(to)) {
-            fs.copyFileSync(from, to);
+            copySafe(from, to);
           }
         }
-        fs.rmSync(tmp, { recursive: true, force: true });
+        rmSafe(tmp);
         fs.unlinkSync(zipPath);
         // Manifeste anti-triche : empreinte de chaque mod officiel
         const manifest = { files: {} };
@@ -578,8 +647,8 @@ ipcMain.handle("game:launch", async (_evt, server) => {
         }
         if (tampered) {
           // Réinitialisation : le pack sera retéléchargé proprement
-          fs.rmSync(modsDir, { recursive: true, force: true });
-          fs.rmSync(manifestFile, { force: true });
+          rmSafe(modsDir);
+          rmSafe(manifestFile);
           return {
             ok: false,
             error: "Des fichiers de mods modifiés ont été détectés. Ils ont été réinitialisés : clique à nouveau sur JOUER.",

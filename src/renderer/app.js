@@ -77,6 +77,23 @@ launcher.onUpdateReady(() => {
 });
 $("btn-update").onclick = () => launcher.installUpdate();
 
+// Erreur de mise à jour : on prévient et on propose le téléchargement manuel
+launcher.onUpdateError((d) => {
+  const banner = $("update-banner");
+  banner.classList.remove("hidden");
+  banner.style.background = "linear-gradient(90deg, #7f1d1d, #b91c1c)";
+  $("update-text").textContent = "Mise à jour automatique impossible — télécharge la dernière version.";
+  const btn = $("btn-update");
+  btn.classList.remove("hidden");
+  btn.textContent = "Télécharger";
+  btn.onclick = () =>
+    launcher.openLink(
+      config?.links?.site ||
+        "https://github.com/Suriano-66/Crack-Games-Launcher/releases/latest"
+    );
+  console.error("[update]", d.message);
+});
+
 // ---------- Liens ----------
 // Fond vidéo de l'écran de connexion (boucle, sans son)
 function showLoginBackground() {

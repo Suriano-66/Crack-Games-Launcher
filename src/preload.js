@@ -34,5 +34,6 @@ contextBridge.exposeInMainWorld("launcher", {
   onUpdateAvailable: (cb) => ipcRenderer.on("update:available", (_e, d) => cb(d)),
   onUpdateProgress: (cb) => ipcRenderer.on("update:progress", (_e, d) => cb(d)),
   onUpdateReady: (cb) => ipcRenderer.on("update:ready", () => cb()),
+  onUpdateError: (cb) => ipcRenderer.on("update:error", (_e, d) => cb(d)),
   installUpdate: () => ipcRenderer.send("update:install"),
 });
