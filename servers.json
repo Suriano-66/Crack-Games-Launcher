@@ -39,7 +39,8 @@
         "url": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/mods.zip",
         "version": "1"
       },
-      "mods": []
+      "mods": [],
+      "hoverColor": "#f59e0b"
     },
     {
       "id": "squidgames",
@@ -60,7 +61,8 @@
         "url": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/mods.zip",
         "version": "1"
       },
-      "mods": []
+      "mods": [],
+      "hoverColor": "#ec4899"
     },
     {
       "id": "test",

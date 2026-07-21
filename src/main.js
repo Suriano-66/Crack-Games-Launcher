@@ -120,11 +120,24 @@ function createWindow() {
     backgroundColor: "#0d0f14",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
+      contextIsolation: true,   // le rendu ne voit pas les objets internes d'Electron
+      nodeIntegration: false,   // pas d'accès à Node depuis la page
+      sandbox: true,            // le processus de rendu est mis en bac à sable
+      webviewTag: false,        // pas de <webview>
+      spellcheck: false,
     },
   });
   win.loadFile(path.join(__dirname, "renderer", "index.html"));
+
+  // Verrouillage de la navigation : la page ne peut ni naviguer ailleurs,
+  // ni ouvrir de fenêtre. Les liens externes passent par le navigateur système.
+  win.webContents.on("will-navigate", (e) => e.preventDefault());
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https:\/\//.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
+  // Refuse toute demande de permission (caméra, micro, géoloc...)
+  win.webContents.session.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
 }
 
 app.setAppUserModelId("com.crackgames.launcher");
@@ -148,6 +161,7 @@ ipcMain.on("open:gamedir", () => {
 });
 
 // ---------- Mise à jour automatique ----------
+let updateState = { status: "idle", version: null, percent: 0 };
 function initAutoUpdate() {
   if (!app.isPackaged) return; // seulement sur la version installée
   const { autoUpdater } = require("electron-updater");
@@ -175,33 +189,63 @@ function initAutoUpdate() {
   // Ouvrir le fichier de log depuis l'interface
   ipcMain.on("update:openlog", () => shell.openPath(logFile));
 
-  autoUpdater.on("update-available", (info) =>
-    win.webContents.send("update:available", { version: info.version })
-  );
-  autoUpdater.on("download-progress", (p) =>
-    win.webContents.send("update:progress", { percent: Math.round(p.percent) })
-  );
-  autoUpdater.on("update-downloaded", () =>
-    win.webContents.send("update:ready")
-  );
+  // État courant de la mise à jour, mémorisé pour que l'interface puisse le
+  // demander à tout moment (évite de perdre un événement arrivé trop tôt).
+  const send = (channel, payload) => {
+    try { win?.webContents.send(channel, payload); } catch {}
+  };
+  autoUpdater.on("update-available", (info) => {
+    updateState = { status: "available", version: info.version, percent: 0 };
+    send("update:available", { version: info.version });
+  });
+  autoUpdater.on("download-progress", (p) => {
+    const percent = Math.round(p.percent);
+    if (updateState.status !== "ready") updateState = { ...updateState, status: "downloading", percent };
+    send("update:progress", { percent });
+  });
+  autoUpdater.on("update-downloaded", () => {
+    updateState = { ...updateState, status: "ready", percent: 100 };
+    send("update:ready");
+  });
   autoUpdater.on("error", (e) => {
     console.error("[update] erreur :", e?.message || e);
-    win.webContents.send("update:error", { message: String(e?.message || e).slice(0, 200) });
+    send("update:error", { message: String(e?.message || e).slice(0, 200) });
   });
+
+  // L'interface peut réclamer l'état à jour dès qu'elle est prête (rattrapage)
+  ipcMain.handle("update:get", () => updateState);
 
   ipcMain.on("update:install", () => {
     try {
       autoUpdater.quitAndInstall(false, true);
     } catch (e) {
       console.error("[update] installation impossible :", e?.message || e);
-      win.webContents.send("update:error", { message: "Installation impossible : " + e?.message });
+      send("update:error", { message: "Installation impossible : " + e?.message });
     }
   });
 
-  autoUpdater.checkForUpdates().catch((e) =>
+  // On lance la 1re vérification une fois la page chargée, pour être sûr que
+  // l'interface reçoive bien l'événement « mise à jour disponible ».
+  const runCheck = () => autoUpdater.checkForUpdates().catch((e) =>
     console.error("[update] vérification impossible :", e?.message || e)
   );
-  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 30 * 60 * 1000);
+  if (win.webContents.isLoading()) {
+    win.webContents.once("did-finish-load", () => setTimeout(runCheck, 1500));
+  } else {
+    setTimeout(runCheck, 1500);
+  }
+
+  // Revérifie régulièrement (toutes les 10 min) et quand le joueur revient
+  // sur le launcher — la mise à jour apparaît alors sans avoir à le relancer.
+  setInterval(runCheck, 10 * 60 * 1000);
+  let lastFocusCheck = 0;
+  win.on("focus", () => {
+    if (updateState.status === "ready") return;
+    const now = Date.now();
+    if (now - lastFocusCheck < 60 * 1000) return; // pas plus d'1 fois/min
+    lastFocusCheck = now;
+    runCheck();
+  });
 }
 
 // ---------- Discord Rich Presence ----------
@@ -251,7 +295,7 @@ ipcMain.handle("settings:set", (_e, s) => {
 ipcMain.handle("game:repair", (_e, serverId) => {
   try {
     if (!serverId || /[\\/.]/.test(serverId)) throw new Error("Serveur invalide");
-    rmSafe(path.join(GAME_DIR(), "instances", serverId));
+    rmSafe(instanceDir(serverId));
     return { ok: true };
   } catch (e) {
     return { ok: false, error: fmtErr(e) };
@@ -435,8 +479,30 @@ function javaMajorFor(version) {
   return 8;
 }
 
+// Domaines autorisés pour TOUT téléchargement du launcher.
+// Empêche qu'un servers.json compromis fasse télécharger depuis n'importe où.
+const TRUSTED_HOSTS = [
+  "github.com", "objects.githubusercontent.com", "raw.githubusercontent.com",
+  "release-assets.githubusercontent.com",
+  "piston-data.mojang.com", "piston-meta.mojang.com", "libraries.minecraft.net",
+  "resources.download.minecraft.net", "launchermeta.mojang.com",
+  "maven.neoforged.net", "maven.minecraftforge.net", "maven.fabricmc.net",
+  "meta.fabricmc.net", "api.adoptium.net", "github.githubassets.com",
+];
+
+function assertTrustedUrl(url) {
+  let u;
+  try { u = new URL(url); } catch { throw new Error("URL invalide : " + url); }
+  if (u.protocol !== "https:") throw new Error("Téléchargement non sécurisé (HTTPS requis) : " + url);
+  const host = u.hostname.toLowerCase();
+  const ok = TRUSTED_HOSTS.some((h) => host === h || host.endsWith("." + h));
+  if (!ok) throw new Error("Domaine non autorisé : " + host);
+  return u;
+}
+
 async function downloadFile(url, dest, onPct) {
-  const res = await fetch(url);
+  assertTrustedUrl(url); // HTTPS + domaine de confiance obligatoires
+  const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new Error("Téléchargement impossible : " + url);
   const total = Number(res.headers.get("content-length")) || 0;
   const ws = fs.createWriteStream(dest);
@@ -447,6 +513,28 @@ async function downloadFile(url, dest, onPct) {
     if (total && onPct) onPct(Math.round((done / total) * 100));
   }
   await new Promise((r) => ws.end(r));
+}
+
+/** Nom de fichier sûr : pas de chemin, pas de traversée de dossier. */
+function safeName(name) {
+  return path.basename(String(name)).replace(/[^A-Za-z0-9._+\-]/g, "_");
+}
+
+/** Dossier d'instance d'un serveur, avec identifiant assaini (pas de traversée). */
+function instanceDir(serverId) {
+  const id = String(serverId || "").replace(/[^A-Za-z0-9_-]/g, "");
+  if (!id) throw new Error("Identifiant de serveur invalide");
+  return path.join(GAME_DIR(), "instances", id);
+}
+
+/** Empêche d'écrire hors du dossier autorisé (zip slip / path traversal). */
+function safeJoin(baseDir, entry) {
+  const target = path.resolve(baseDir, entry);
+  const base = path.resolve(baseDir);
+  if (target !== base && !target.startsWith(base + path.sep)) {
+    throw new Error("Chemin non autorisé : " + entry);
+  }
+  return target;
 }
 
 async function ensureJava(version, onPct) {
@@ -536,7 +624,9 @@ async function ensureNeoforgeLibraries(root, jar, send) {
   const libs = (profile.libraries || []).filter((l) => l.downloads?.artifact?.url && l.downloads.artifact.path);
   for (let i = 0; i < libs.length; i++) {
     const a = libs[i].downloads.artifact;
-    const dest = path.join(root, "libraries", ...a.path.split("/"));
+    const libsRoot = path.join(root, "libraries");
+    const dest = safeJoin(libsRoot, a.path.replace(/\\/g, "/")); // pas de traversée
+
     send("loader", i + 1, libs.length);
     if (fs.existsSync(dest)) continue;
     fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -550,6 +640,7 @@ async function ensureNeoforgeLibraries(root, jar, send) {
 async function packRemoteTag(server) {
   let remoteTag = "";
   try {
+    assertTrustedUrl(server.modsZip.url);
     const head = await fetch(server.modsZip.url, { method: "HEAD" });
     if (head.ok) {
       remoteTag =
@@ -564,7 +655,7 @@ async function packRemoteTag(server) {
 ipcMain.handle("pack:check", async (_e, server) => {
   try {
     if (!server?.modsZip?.url) return { ok: true, needsUpdate: false, installed: true };
-    const root = path.join(GAME_DIR(), "instances", server.id);
+    const root = instanceDir(server.id);
     const marker = path.join(root, "mods", ".pack-version");
     const installed = fs.existsSync(marker);
     const want = await packRemoteTag(server);
@@ -578,7 +669,7 @@ ipcMain.handle("pack:check", async (_e, server) => {
 /** Installe (ou met à jour) le pack de mods. */
 async function installPack(server, send) {
   if (!server.modsZip?.url) return false;
-  const root = path.join(GAME_DIR(), "instances", server.id);
+  const root = instanceDir(server.id);
   fs.mkdirSync(root, { recursive: true });
   const modsDir = path.join(root, "mods");
   const marker = path.join(modsDir, ".pack-version");
@@ -600,13 +691,13 @@ async function installPack(server, send) {
   // Le zip peut contenir les .jar à la racine ou dans un dossier mods/
   const src = fs.existsSync(path.join(tmp, "mods")) ? path.join(tmp, "mods") : tmp;
   for (const f of fs.readdirSync(src)) {
-    if (f.endsWith(".jar")) copySafe(path.join(src, f), path.join(modsDir, f));
+    if (f.endsWith(".jar")) copySafe(path.join(src, f), safeJoin(modsDir, safeName(f)));
   }
   // Le reste (options.txt, config/, resourcepacks/...) sans écraser l'existant
   for (const entry of fs.readdirSync(tmp)) {
     if (entry === "mods") continue;
     const from = path.join(tmp, entry);
-    const to = path.join(root, entry);
+    const to = safeJoin(root, safeName(entry)); // jamais hors de l'instance
     if (fs.statSync(from).isDirectory()) {
       fs.cpSync(from, to, { recursive: true, force: false });
     } else if (!entry.endsWith(".jar") && !fs.existsSync(to)) {
@@ -648,7 +739,7 @@ ipcMain.handle("game:launch", async (_evt, server) => {
       win.webContents.send("game:progress", { type, task, total });
 
     const mc = await getMc();
-    const root = path.join(GAME_DIR(), "instances", server.id);
+    const root = instanceDir(server.id);
     fs.mkdirSync(root, { recursive: true });
 
     // 1. Java auto
@@ -665,8 +756,10 @@ ipcMain.handle("game:launch", async (_evt, server) => {
       for (let i = 0; i < server.mods.length; i++) {
         const m = server.mods[i];
         send("mods", i + 1, server.mods.length);
-        const f = path.join(modsDir, m.name.endsWith(".jar") ? m.name : m.name + ".jar");
+        const base = safeName(m.name.endsWith(".jar") ? m.name : m.name + ".jar");
+        const f = safeJoin(modsDir, base);
         if (fs.existsSync(f)) continue;
+        assertTrustedUrl(m.url); // HTTPS + domaine de confiance
         const r = await fetch(m.url);
         if (!r.ok) throw new Error("Mod introuvable : " + m.name);
         fs.writeFileSync(f, Buffer.from(await r.arrayBuffer()));

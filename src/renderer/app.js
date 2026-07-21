@@ -89,17 +89,20 @@ launcher.onUpdateLog((d) => {
   if (dbg && !dbg.classList.contains("hidden")) dbg.textContent = d.line;
 });
 
-launcher.onUpdateAvailable((d) => {
-  $("update-banner").classList.remove("hidden");
-  $("update-text").textContent = `Mise à jour ${d.version} en cours de téléchargement...`;
-  armUpdateStallTimer(d.version);
-});
-launcher.onUpdateProgress((d) => {
-  $("update-text").textContent = `Téléchargement de la mise à jour... ${d.percent}%`;
-  armUpdateStallTimer(); // le téléchargement avance, on repousse l'alerte
-});
 let updateReady = false;
-launcher.onUpdateReady(() => {
+function showUpdateAvailable(version) {
+  if (updateReady) return;
+  $("update-banner").classList.remove("hidden");
+  $("update-text").textContent = `Mise à jour ${version || ""} en cours de téléchargement...`;
+  armUpdateStallTimer(version);
+}
+function showUpdateProgress(percent) {
+  if (updateReady) return;
+  $("update-banner").classList.remove("hidden");
+  $("update-text").textContent = `Téléchargement de la mise à jour... ${percent}%`;
+  armUpdateStallTimer(); // le téléchargement avance, on repousse l'alerte
+}
+function showUpdateReady() {
   updateReady = true;
   clearTimeout(updateStallTimer);
   $("update-banner").classList.remove("hidden");
@@ -110,7 +113,24 @@ launcher.onUpdateReady(() => {
   btn.disabled = false;
   btn.textContent = "METTRE À JOUR";
   btn.classList.add("update-mode");
-});
+}
+
+launcher.onUpdateAvailable((d) => showUpdateAvailable(d.version));
+launcher.onUpdateProgress((d) => showUpdateProgress(d.percent));
+launcher.onUpdateReady(() => showUpdateReady());
+
+// Rattrapage : au démarrage, l'interface demande l'état courant au cas où
+// un événement de mise à jour serait arrivé avant que la page soit prête.
+(async () => {
+  try {
+    const st = await launcher.getUpdateStatus?.();
+    if (!st || st.status === "idle") return;
+    if (st.status === "ready") showUpdateReady();
+    else if (st.status === "downloading") showUpdateProgress(st.percent || 0);
+    else if (st.status === "available") showUpdateAvailable(st.version);
+  } catch {}
+})();
+
 $("btn-update").onclick = () => launcher.installUpdate();
 $("btn-update-log").onclick = () => launcher.openUpdateLog();
 
@@ -315,23 +335,35 @@ document.addEventListener("click", () => $("account-menu").classList.add("hidden
 })();
 
 // ---------- Actualités ----------
+let lastNewsKey = null;
+let newsTimer = null;
 async function loadNews() {
   const res = await launcher.getNews();
   const list = $("news-list");
-  list.innerHTML = "";
   if (!res.ok || !res.news?.length) {
-    list.innerHTML = '<div class="news-item"><div class="n-content">Aucune actualité pour le moment.</div></div>';
-    return;
+    if (lastNewsKey !== "empty") {
+      list.innerHTML = '<div class="news-item"><div class="n-content">Aucune actualité pour le moment.</div></div>';
+      lastNewsKey = "empty";
+    }
+  } else {
+    const key = JSON.stringify(res.news);
+    if (key !== lastNewsKey) { // on ne redessine que si ça a changé (pas de clignotement)
+      lastNewsKey = key;
+      list.innerHTML = "";
+      res.news.forEach((n) => {
+        const el = document.createElement("div");
+        el.className = "news-item";
+        el.innerHTML =
+          `<div class="n-title">${n.title}</div>` +
+          `<div class="n-date">${n.date || ""}</div>` +
+          `<div class="n-content">${n.content}</div>`;
+        list.appendChild(el);
+      });
+    }
   }
-  res.news.forEach((n) => {
-    const el = document.createElement("div");
-    el.className = "news-item";
-    el.innerHTML =
-      `<div class="n-title">${n.title}</div>` +
-      `<div class="n-date">${n.date || ""}</div>` +
-      `<div class="n-content">${n.content}</div>`;
-    list.appendChild(el);
-  });
+  // Re-synchronise les news chaque minute : les modifs du panel admin
+  // apparaissent sans relancer le launcher.
+  if (!newsTimer) newsTimer = setInterval(loadNews, 60000);
 }
 
 // ---------- Serveurs ----------

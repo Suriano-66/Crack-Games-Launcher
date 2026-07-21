@@ -40,4 +40,5 @@ contextBridge.exposeInMainWorld("launcher", {
   onUpdateLog: (cb) => ipcRenderer.on("update:log", (_e, d) => cb(d)),
   openUpdateLog: () => ipcRenderer.send("update:openlog"),
   installUpdate: () => ipcRenderer.send("update:install"),
+  getUpdateStatus: () => ipcRenderer.invoke("update:get"),
 });
