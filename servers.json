@@ -29,7 +29,7 @@
       "ip": "91.197.6.99",
       "port": 25800,
       "version": "1.21.1",
-      "visible": true,
+      "visible": false,
       "maintenance": false,
       "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/cracktownfond.mp4",
       "loader": {
