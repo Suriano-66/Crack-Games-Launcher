@@ -33,7 +33,8 @@
       "maintenance": false,
       "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/cracktownfond.mp4",
       "loader": {
-        "type": "neoforge"
+        "type": "neoforge",
+        "version": "21.1.241"
       },
       "modsZip": {
         "url": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/mods.zip",

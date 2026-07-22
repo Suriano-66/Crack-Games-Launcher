@@ -41,4 +41,7 @@ contextBridge.exposeInMainWorld("launcher", {
   openUpdateLog: () => ipcRenderer.send("update:openlog"),
   installUpdate: () => ipcRenderer.send("update:install"),
   getUpdateStatus: () => ipcRenderer.invoke("update:get"),
+  onGameLog: (cb) => ipcRenderer.on("game:log", (_e, m) => cb(m)),
+  onGameCrashed: (cb) => ipcRenderer.on("game:crashed", (_e, d) => cb(d)),
+  openGameLog: () => ipcRenderer.send("open:gamelog"),
 });

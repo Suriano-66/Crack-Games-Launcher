@@ -155,6 +155,9 @@ ipcMain.handle("config:get", () => ({ ...CONFIG, appVersion: app.getVersion() })
 ipcMain.on("open:link", (_e, url) => {
   if (/^https?:\/\//.test(url)) shell.openExternal(url);
 });
+ipcMain.on("open:gamelog", () => {
+  shell.openPath(path.join(app.getPath("userData"), "game.log"));
+});
 ipcMain.on("open:gamedir", () => {
   fs.mkdirSync(GAME_DIR(), { recursive: true });
   shell.openPath(GAME_DIR());
@@ -357,13 +360,30 @@ async function refreshAccount(uuid) {
 // Session Minecraft valable ~24h : on la met en cache 6h pour éviter le rate-limit.
 // Si elle est périmée, on rafraîchit le compte ; en dernier recours on demande
 // une reconnexion (au lieu d'afficher une erreur trompeuse).
+/** Rejette si l'opération dépasse le délai : évite les blocages sans fin. */
+function withTimeout(promise, ms, label) {
+  let t;
+  return Promise.race([
+    Promise.resolve(promise).finally(() => clearTimeout(t)),
+    new Promise((_, rej) => {
+      t = setTimeout(() => rej(new Error(`Délai dépassé : ${label} (${Math.round(ms / 1000)}s)`)), ms);
+    }),
+  ]);
+}
+
+/** Trace d'étape : console du main + console/interface du rendu. */
+function glog(msg) {
+  console.log("[launch]", msg);
+  try { win?.webContents.send("game:log", String(msg)); } catch {}
+}
+
 async function getMc() {
   if (mcSession && Date.now() - mcSessionAt < 6 * 3600 * 1000) return mcSession;
 
   // 1re tentative avec la session courante
   if (authResult) {
     try {
-      mcSession = await authResult.getMinecraft();
+      mcSession = await withTimeout(authResult.getMinecraft(), 25000, "session Microsoft");
       mcSessionAt = Date.now();
       return mcSession;
     } catch (e) {
@@ -375,7 +395,7 @@ async function getMc() {
   try {
     const db = loadAccounts();
     if (!db.current) throw new Error("no-account");
-    await refreshAccount(db.current);
+    await withTimeout(refreshAccount(db.current), 25000, "rafraîchissement du compte");
     if (mcSession) return mcSession;
   } catch (e) {
     console.error("[auth] rafraîchissement impossible :", e?.message || e);
@@ -499,26 +519,47 @@ function javaMajorFor(version) {
 // Domaines autorisés pour TOUT téléchargement du launcher.
 // Empêche qu'un servers.json compromis fasse télécharger depuis n'importe où.
 const TRUSTED_HOSTS = [
+  // GitHub (releases, pack de mods, mises à jour)
   "github.com", "objects.githubusercontent.com", "raw.githubusercontent.com",
-  "release-assets.githubusercontent.com",
+  "release-assets.githubusercontent.com", "github.githubassets.com",
+  // Mojang
   "piston-data.mojang.com", "piston-meta.mojang.com", "libraries.minecraft.net",
   "resources.download.minecraft.net", "launchermeta.mojang.com",
-  "maven.neoforged.net", "maven.minecraftforge.net", "maven.fabricmc.net",
-  "meta.fabricmc.net", "api.adoptium.net", "github.githubassets.com",
+  // Modloaders
+  "maven.neoforged.net", "maven.minecraftforge.net", "files.minecraftforge.net",
+  "maven.fabricmc.net", "meta.fabricmc.net", "maven.quiltmc.org",
+  // Dépôts Maven utilisés par les profils d'installation NeoForge/Forge
+  "repo1.maven.org", "repo.maven.apache.org", "oss.sonatype.org",
+  "maven.creeperhost.net", "maven.parchmentmc.org", "maven.architectury.dev",
+  "maven.blamejared.com", "maven.minecraftforge.net",
+  // Hébergeurs de mods
+  "cdn.modrinth.com", "api.modrinth.com",
+  "edge.forgecdn.net", "mediafilez.forgecdn.net",
+  // Java
+  "api.adoptium.net", "adoptium.net",
 ];
 
-function assertTrustedUrl(url) {
+/**
+ * Vérifie une URL de téléchargement.
+ * @param {boolean} httpsOnly  true = on exige seulement le HTTPS (utilisé pour
+ *   les librairies listées par l'installeur NeoForge, lui-même déjà téléchargé
+ *   depuis un domaine de confiance : bloquer sur la liste casserait le jeu).
+ *   false = HTTPS + domaine de la liste blanche (URLs venant de servers.json,
+ *   c'est là qu'est le vrai risque).
+ */
+function assertTrustedUrl(url, httpsOnly = false) {
   let u;
   try { u = new URL(url); } catch { throw new Error("URL invalide : " + url); }
   if (u.protocol !== "https:") throw new Error("Téléchargement non sécurisé (HTTPS requis) : " + url);
+  if (httpsOnly) return u;
   const host = u.hostname.toLowerCase();
   const ok = TRUSTED_HOSTS.some((h) => host === h || host.endsWith("." + h));
   if (!ok) throw new Error("Domaine non autorisé : " + host);
   return u;
 }
 
-async function downloadFile(url, dest, onPct) {
-  assertTrustedUrl(url); // HTTPS + domaine de confiance obligatoires
+async function downloadFile(url, dest, onPct, httpsOnly = false) {
+  assertTrustedUrl(url, httpsOnly);
   const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new Error("Téléchargement impossible : " + url);
   const total = Number(res.headers.get("content-length")) || 0;
@@ -585,7 +626,8 @@ async function ensureJava(version, onPct) {
 // ---------- NeoForge (version épinglable, dernière version par défaut) ----------
 async function neoforgeConfig(server, root, send) {
   const metaRes = await fetch(
-    "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml"
+    "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml",
+    { signal: AbortSignal.timeout(20000) }
   );
   if (!metaRes.ok) throw new Error("Impossible de récupérer les versions NeoForge");
   const meta = await metaRes.text();
@@ -597,9 +639,13 @@ async function neoforgeConfig(server, root, send) {
   const candidates = all.filter((v) => v.startsWith(prefix) && !v.includes("beta"));
   if (!candidates.length) throw new Error("Pas de NeoForge pour Minecraft " + server.version);
 
-  // Version précise du serveur si fournie, sinon la plus récente
-  const ver = server.loader.version || candidates[candidates.length - 1];
+  // Version précise du serveur si fournie, sinon la plus récente.
+  // ⚠ Sans version épinglée, le launcher suit les publications de NeoForge :
+  // une nouvelle version peut casser le pack (conflit de librairies ASM...).
+  const pinned = server.loader.version;
+  const ver = pinned || candidates[candidates.length - 1];
   if (!all.includes(ver)) throw new Error("Version NeoForge introuvable : " + ver);
+  glog(`   NeoForge ${ver}` + (pinned ? " (épinglée)" : " (dernière — pense à épingler loader.version)"));
 
   const jar = path.join(root, "versions", `neoforge-${ver}`, "neoforge-installer.jar");
   if (!fs.existsSync(jar)) {
@@ -647,7 +693,8 @@ async function ensureNeoforgeLibraries(root, jar, send) {
     send("loader", i + 1, libs.length);
     if (fs.existsSync(dest)) continue;
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    await downloadFile(a.url, dest);
+    // Librairies listées par l'installeur NeoForge officiel : HTTPS suffit.
+    await downloadFile(a.url, dest, undefined, true);
   }
 }
 
@@ -658,7 +705,7 @@ async function packRemoteTag(server) {
   let remoteTag = "";
   try {
     assertTrustedUrl(server.modsZip.url);
-    const head = await fetch(server.modsZip.url, { method: "HEAD" });
+    const head = await fetch(server.modsZip.url, { method: "HEAD", signal: AbortSignal.timeout(15000) });
     if (head.ok) {
       remoteTag =
         (head.headers.get("etag") || "").replace(/"/g, "") +
@@ -755,16 +802,22 @@ ipcMain.handle("game:launch", async (_evt, server) => {
     const send = (type, task, total) =>
       win.webContents.send("game:progress", { type, task, total });
 
+    glog("1/6 session Microsoft...");
     const mc = await getMc();
+    glog("   session OK (" + (mc?.profile?.name || "?") + ")");
     const root = instanceDir(server.id);
     fs.mkdirSync(root, { recursive: true });
 
     // 1. Java auto
+    glog("2/6 Java...");
     send("java", 0, 100);
     const javaPath = await ensureJava(server.version, (p) => send("java", p, 100));
+    glog("   Java OK : " + javaPath);
 
     // 2a. Pack de mods (installé/mis à jour si nécessaire)
+    glog("3/6 pack de mods...");
     if (server.modsZip?.url) await installPack(server, send);
+    glog("   pack OK");
 
     // 2b. Mods individuels
     if (Array.isArray(server.mods) && server.mods.length) {
@@ -784,6 +837,7 @@ ipcMain.handle("game:launch", async (_evt, server) => {
     }
 
     // 2c. Anti-triche : le dossier mods doit correspondre exactement au pack officiel
+    glog("4/6 vérification anti-triche...");
     {
       const manifestFile = path.join(root, ".mods-manifest.json");
       if (fs.existsSync(manifestFile)) {
@@ -831,6 +885,7 @@ ipcMain.handle("game:launch", async (_evt, server) => {
     }
 
     // 3. Modloader (forge / neoforge / fabric / quilt)
+    glog("5/6 modloader...");
     let loaderConfig = null;
     const loaderType = server.loader?.type;
     if (loaderType === "neoforge") {
@@ -867,19 +922,50 @@ ipcMain.handle("game:launch", async (_evt, server) => {
         : { server: { host: server.ip, port: String(server.port) } }),
     };
 
+    glog("6/6 démarrage de Minecraft (MCLC)...");
     const launcher = new Client();
     launcher.on("progress", (e) => send(e.type, e.task, e.total));
-    launcher.on("debug", (l) => console.log("[MCLC]", l));
+    launcher.on("debug", (l) => { console.log("[MCLC]", l); glog("MCLC: " + String(l).slice(0, 160)); });
+    // Journal complet du jeu : indispensable pour diagnostiquer un crash
+    const gameLogFile = path.join(app.getPath("userData"), "game.log");
+    try { fs.writeFileSync(gameLogFile, `=== ${server.name} — ${new Date().toISOString()} ===\n`); } catch {}
+    const tail = []; // 40 dernières lignes, pour l'affichage d'erreur
+    const writeGame = (l) => {
+      const s = String(l);
+      try { fs.appendFileSync(gameLogFile, s); } catch {}
+      for (const line of s.split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        tail.push(line);
+        if (tail.length > 40) tail.shift();
+        glog("MC: " + line.slice(0, 200));
+      }
+    };
+
+    let started = false;
     launcher.on("data", (l) => {
       process.stdout.write("[MC] " + l);
-      win.webContents.send("game:started");
-      if (getSettings().closeLauncher && !win.isMinimized()) win.minimize();
-      setRPC("Joue sur " + server.name, server.ip);
+      writeGame(l);
+      if (!started) {
+        started = true;
+        win.webContents.send("game:started");
+        if (getSettings().closeLauncher && !win.isMinimized()) win.minimize();
+        setRPC("Joue sur " + server.name, server.ip);
+      }
     });
     launcher.on("close", (code) => {
+      glog(`Minecraft s'est fermé (code ${code})`);
       win.webContents.send("game:closed", code);
       if (win.isMinimized()) win.restore();
       setRPC("Sur le launcher");
+      // Code ≠ 0 = crash : on remonte les dernières lignes utiles
+      if (code !== 0) {
+        const cause = tail.filter((l) => /Exception|Error|Caused by|FATAL|Missing|incompatib/i.test(l)).slice(-6);
+        win.webContents.send("game:crashed", {
+          code,
+          lines: (cause.length ? cause : tail.slice(-6)).join("\n"),
+          logFile: gameLogFile,
+        });
+      }
     });
 
     await launcher.launch(opts);

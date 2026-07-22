@@ -9,6 +9,19 @@ let pingTimer = null;
 $("btn-min").onclick = () => launcher.minimize();
 $("btn-close").onclick = () => launcher.close();
 
+// ---------- Logos : repli texte si l'image est absente ----------
+// (fait en JS et non en attribut onerror : la CSP interdit le code inline)
+function logoFallback(imgId, textId, display) {
+  const img = $(imgId), txt = $(textId);
+  if (!img || !txt) return;
+  const showText = () => { img.style.display = "none"; txt.style.display = display; };
+  img.addEventListener("error", showText);
+  // L'image a pu échouer avant que ce script ne s'exécute
+  if (img.complete && img.naturalWidth === 0) showText();
+}
+logoFallback("brand-logo", "brand-text", "inline");
+logoFallback("logo-img", "logo-text", "block");
+
 // ---------- Fond animé : particules connectées ----------
 (() => {
   const canvas = $("bg-canvas");
@@ -236,6 +249,7 @@ $("btn-repair").onclick = async () => {
 };
 
 $("btn-gamedir").onclick = () => launcher.openGameDir();
+$("btn-gamelog").onclick = () => launcher.openGameLog();
 $("btn-close-settings").onclick = () => $("settings-modal").classList.add("hidden");
 $("settings-modal").onclick = (e) => {
   if (e.target === $("settings-modal")) $("settings-modal").classList.add("hidden");
@@ -657,18 +671,42 @@ const PROGRESS_LABELS = {
 };
 
 $("btn-play").onclick = async () => {
-  if (updateReady) return launcher.installUpdate(); // mise à jour du launcher
-  if (!selected) return;
-  if (packNeedsUpdate) return doPackUpdate(); // mise à jour du modpack
+  if (updateReady) {
+    console.log("[play] mise à jour du launcher en attente → installation");
+    return launcher.installUpdate();
+  }
+  if (!selected) {
+    console.warn("[play] aucun serveur sélectionné — clic ignoré");
+    $("progress-text").textContent = "Sélectionne d'abord un serveur.";
+    return;
+  }
+  if (packNeedsUpdate) {
+    console.log("[play] mise à jour du modpack");
+    return doPackUpdate();
+  }
   const btn = $("btn-play");
   btn.disabled = true;
   $("progress-text").textContent = "Préparation de " + selected.name + "...";
+  console.log("[play] lancement de", selected.id);
   const res = await launcher.launch(selected);
   if (!res.ok) {
     btn.disabled = false;
+    console.error("[play] échec du lancement :", res.error);
     $("progress-text").textContent = "Erreur : " + res.error;
   }
 };
+
+// Étapes détaillées du lancement (visibles dans la console)
+launcher.onGameLog?.((m) => console.log("[launch]", m));
+
+// Crash du jeu : on affiche la cause au lieu de laisser l'écran vide
+launcher.onGameCrashed?.((d) => {
+  console.error("[crash] code", d.code, "\n" + d.lines);
+  $("btn-play").disabled = selected?.maintenance || false;
+  $("progress-fill").style.width = "0%";
+  $("progress-text").textContent =
+    "Minecraft s'est fermé (code " + d.code + "). Ouvre le journal du jeu pour le détail.";
+});
 
 launcher.onProgress((d) => {
   const pct = d.total ? Math.round((d.task / d.total) * 100) : 0;
