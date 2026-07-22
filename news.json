@@ -1,9 +1,3 @@
 {
-  "news": [
-    {
-      "title": "test",
-      "date": "22/07/2026",
-      "content": "test"
-    }
-  ]
+  "news": []
 }
