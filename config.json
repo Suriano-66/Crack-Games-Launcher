@@ -7,9 +7,9 @@
   "mainBackground": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/loginfond.mp4",
   "discordAppId": "",
   "links": {
-    "site": "https://crackgames.fr",
-    "discord": "https://discord.gg/toninvite",
-    "boutique": "https://boutique.crackgames.fr"
+    "site": "https://crackgames-site.onrender.com",
+    "discord": "https://discord.gg/pRy9k7x3bT",
+    "boutique": "https://crackgames-site.onrender.com/boutique.html"
   },
   "memory": {
     "min": "2G",
