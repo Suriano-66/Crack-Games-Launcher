@@ -72,7 +72,7 @@
       "port": 25565,
       "version": "1.21.1",
       "visible": false,
-      "maintenance": false
+      "maintenance": true
     }
   ]
 }
