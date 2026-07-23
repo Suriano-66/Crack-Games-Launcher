@@ -48,7 +48,7 @@
       "name": "Crack Squid Games",
       "description": "Serveur moddé NeoForge",
       "logo": "servers/cgsquidgame.png",
-      "color": "#2E8B57",
+      "color": "#f44786",
       "ip": "91.197.6.99",
       "port": 25800,
       "version": "1.20.1",
@@ -63,7 +63,7 @@
         "version": "1"
       },
       "mods": [],
-      "hoverColor": "#ec4899"
+      "hoverColor": "#f44786"
     },
     {
       "id": "test",
