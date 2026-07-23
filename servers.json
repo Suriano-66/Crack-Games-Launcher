@@ -52,7 +52,7 @@
       "ip": "91.197.6.99",
       "port": 25800,
       "version": "1.20.1",
-      "visible": false,
+      "visible": true,
       "maintenance": true,
       "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/squidgamesfond.mp4",
       "loader": {
