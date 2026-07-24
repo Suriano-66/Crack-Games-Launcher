@@ -1,26 +1,6 @@
 {
   "servers": [
     {
-      "id": "survie",
-      "name": "Crack Games Survie",
-      "description": "Serveur survie principal",
-      "ip": "91.197.6.99",
-      "port": 25800,
-      "version": "1.21.1",
-      "visible": false,
-      "maintenance": true
-    },
-    {
-      "id": "pvp",
-      "name": "Crack Games PvP",
-      "description": "Serveur PvP / Faction",
-      "ip": "pvp.crackgames.fr",
-      "port": 25565,
-      "version": "1.20.4",
-      "visible": false,
-      "maintenance": true
-    },
-    {
       "id": "cracktown",
       "name": "Crack Town",
       "description": "Serveur moddé NeoForge",
@@ -30,7 +10,7 @@
       "port": 25800,
       "version": "1.21.1",
       "visible": true,
-      "maintenance": true,
+      "maintenance": false,
       "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/cracktownfond.mp4",
       "loader": {
         "type": "neoforge",
@@ -53,7 +33,7 @@
       "port": 20581,
       "version": "1.20.1",
       "visible": true,
-      "maintenance": true,
+      "maintenance": false,
       "background": "https://github.com/Suriano-66/Crack-Games-Launcher/releases/download/mods-v1/squidgamesfond.mp4",
       "loader": {
         "type": "forge",
